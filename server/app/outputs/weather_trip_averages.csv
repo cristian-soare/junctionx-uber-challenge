@@ -1,0 +1,4 @@
+weather,avg_including_zero,avg_excluding_zero,n_including_zero,n_excluding_zero
+clear,5.0000,5.0852,418,411
+rain,4.8629,4.9191,175,173
+snow,4.9167,5.3636,12,11
