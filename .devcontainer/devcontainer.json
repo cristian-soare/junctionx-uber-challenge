@@ -57,7 +57,7 @@
       }
     }
   },
-  "forwardPorts": [5173, 8000, 6379],
-  "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install && bunx playwright install",
+  "forwardPorts": [8000, 8081, 19000, 19001, 19002, 6379],
+  "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install",
   "remoteUser": "root"
 }
