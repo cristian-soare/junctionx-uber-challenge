@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from app.schemas.internal import Location, ZoneRecommendation
+from app.schemas.internal import Coordinate, ZoneRecommendation
 
 
 class ComputeService:
@@ -11,7 +11,7 @@ class ComputeService:
   async def _predict_optimal_zone(
     self,
     driver_id: str,
-    current_location: Location,
+    current_coordinate: Coordinate,
     all_surges: dict[str, float] | None = None,
   ) -> ZoneRecommendation:
     """Predict optimal hexagon zone for driver to move to.
@@ -20,14 +20,14 @@ class ComputeService:
     - Historical demand patterns per zone
     - Current active requests
     - Predicted surge pricing
-    - Distance from current location
+    - Distance from current coordinate
     - Competitor density (other drivers in zone)
     - Time of day patterns
     - Weather impact on zone demand
 
     Args:
         driver_id: Driver identifier.
-        current_location: Current geographic location with city.
+        current_coordinate: Current geographic coordinate.
         all_surges: Dictionary of surge multipliers per hexagon.
 
     Returns:
@@ -36,7 +36,7 @@ class ComputeService:
     """
     # TODO: Load ML model and run inference
     # - Get demand heatmap predictions from CSV/model
-    # - Calculate distance to each zone using current_location
+    # - Calculate distance to each zone using current_coordinate
     # - Consider driver's historical success rate per zone
 
     best_hex = "89fb0333e75a7e5"
@@ -47,7 +47,7 @@ class ComputeService:
           best_hex = hex_id
           best_surge = surge
 
-    # TODO: Calculate actual distance using current_location
+    # TODO: Calculate actual distance using current_coordinate
     predicted_eph = best_surge * 20.0
     lat, lon = self._get_zone_coordinates(best_hex)
 
@@ -55,7 +55,7 @@ class ComputeService:
       hexagon_id=best_hex,
       predicted_demand=best_surge,
       predicted_earnings_per_hour=predicted_eph,
-      distance_km=2.5,  # TODO: Calculate from current_location
+      distance_km=2.5,  # TODO: Calculate from current_coordinate
       confidence=0.7,
       lat=lat,
       lon=lon,
@@ -393,3 +393,37 @@ class ComputeService:
     avg_lon = sum(lon for _, lon in hexagon_coordinates) / len(hexagon_coordinates)
 
     return (avg_lat, avg_lon)
+
+  async def get_zone_corners(self, zone_id: str, city_id: int) -> list[dict[str, float]]:
+    """Get bounding box corners for a zone.
+
+    Args:
+        zone_id: Zone identifier (hexagon ID).
+        city_id: City identifier.
+
+    Returns:
+        List of 4 corner coordinates representing the bounding box.
+
+    """
+    zones = await self._get_city_zones(city_id)
+
+    hexagon_coords = []
+    for hex_id in zones:
+      lat, lon = self._get_zone_coordinates(hex_id)
+      hexagon_coords.append((lat, lon))
+
+    if not hexagon_coords:
+      return []
+
+    lats = [coord[0] for coord in hexagon_coords]
+    lons = [coord[1] for coord in hexagon_coords]
+
+    min_lat, max_lat = min(lats), max(lats)
+    min_lon, max_lon = min(lons), max(lons)
+
+    return [
+      {"lat": min_lat, "lon": min_lon},
+      {"lat": min_lat, "lon": max_lon},
+      {"lat": max_lat, "lon": max_lon},
+      {"lat": max_lat, "lon": min_lon},
+    ]

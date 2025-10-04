@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class Coordinate(BaseModel):
-  """Geographic coordinate with latitude and longitude."""
+  """Geographic coordinate."""
 
   lat: float = Field(..., ge=-90, le=90, description="Latitude")
   lon: float = Field(..., ge=-180, le=180, description="Longitude")
@@ -27,29 +27,12 @@ class Zone(BaseModel):
   center: Coordinate = Field(..., description="Center coordinate of zone")
 
 
-class Location(BaseModel):
-  """Geographic location with coordinate and city."""
-
-  coordinate: Coordinate = Field(..., description="Geographic coordinate")
-  city_id: int = Field(..., description="City identifier")
-
-  @property
-  def lat(self) -> float:
-    """Get latitude from coordinate."""
-    return self.coordinate.lat
-
-  @property
-  def lon(self) -> float:
-    """Get longitude from coordinate."""
-    return self.coordinate.lon
-
-
-class DriverLocation(BaseModel):
-  """Real-time driver location data."""
+class DriverCoordinate(BaseModel):
+  """Real-time driver coordinate data."""
 
   driver_id: str = Field(..., description="Driver identifier")
-  location: Location = Field(..., description="Geographic location")
-  timestamp: datetime = Field(..., description="Timestamp of location update")
+  coordinate: Coordinate = Field(..., description="Geographic coordinate")
+  timestamp: datetime = Field(..., description="Timestamp of coordinate update")
   status: str = Field(..., description="Driver status (online/offline/engaged)")
 
 
@@ -58,8 +41,8 @@ class TripRequest(BaseModel):
 
   request_id: str = Field(..., description="Unique request identifier")
   rider_id: str = Field(..., description="Rider identifier")
-  pickup: Location = Field(..., description="Pickup location")
-  drop: Location | None = Field(None, description="Drop-off location")
+  pickup: Coordinate = Field(..., description="Pickup coordinate")
+  drop: Coordinate | None = Field(None, description="Drop-off coordinate")
   timestamp: datetime = Field(..., description="Request timestamp")
 
 

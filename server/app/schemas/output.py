@@ -71,6 +71,4 @@ class StartDrivingResponse(BaseModel):
 
   zone_id: str = Field(..., description="Optimal zone ID")
   zone_center: Coordinate = Field(..., description="Center coordinate of optimal zone")
-  score: float = Field(..., description="Zone score")
-  current_time: int = Field(..., description="Current hour (0-23)")
-  remaining_hours: int = Field(..., description="Remaining working hours")
+  zone_corners: list[Coordinate] = Field(..., description="Corner coordinates of hexagon zone")

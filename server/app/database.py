@@ -1,6 +1,7 @@
 """Database connections and helpers for Redis and SQLite."""
 
 import json
+import os
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -35,8 +36,9 @@ class DatabaseManager:
 
   async def init_redis(self) -> None:
     """Initialize Redis connection."""
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     self.redis_client = await redis.from_url(
-      "redis://localhost:6379",
+      redis_url,
       encoding="utf-8",
       decode_responses=True,
     )

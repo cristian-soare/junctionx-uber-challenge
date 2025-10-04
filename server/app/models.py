@@ -80,6 +80,15 @@ class SurgeHistory(Base):
   timestamp: Mapped[datetime] = mapped_column(nullable=False, index=True)
 
 
+class Driver(Base):
+  __tablename__ = "drivers"
+
+  driver_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+  city_id: Mapped[int] = mapped_column(Integer, nullable=False)
+  created_at: Mapped[datetime] = mapped_column(nullable=False)
+  updated_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
 class DriverPreferences(Base):
   """Driver working hours preferences."""
 
@@ -87,7 +96,7 @@ class DriverPreferences(Base):
 
   id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
   driver_id: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-  start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
-  end_hour: Mapped[int] = mapped_column(Integer, nullable=False)
-  city_id: Mapped[int] = mapped_column(Integer, nullable=False)
+  earliest_start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+  latest_start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+  nr_hours: Mapped[int] = mapped_column(Integer, nullable=False)
   updated_at: Mapped[datetime] = mapped_column(nullable=False, index=True)

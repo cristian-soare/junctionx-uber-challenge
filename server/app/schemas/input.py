@@ -4,46 +4,33 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
-class Coordinate(BaseModel):
-  """Geographic coordinate."""
-
-  lat: float = Field(..., ge=-90, le=90, description="Latitude")
-  lon: float = Field(..., ge=-180, le=180, description="Longitude")
+from app.schemas.internal import Coordinate
 
 
-class Location(BaseModel):
-  """Geographic location with coordinate and city."""
+class NewDriverRequest(BaseModel):
+  """New driver registration request."""
 
-  coordinate: Coordinate = Field(..., description="Geographic coordinate")
-  city_id: int = Field(..., description="City identifier")
-
-  @property
-  def lat(self) -> float:
-    """Get latitude from coordinate."""
-    return self.coordinate.lat
-
-  @property
-  def lon(self) -> float:
-    """Get longitude from coordinate."""
-    return self.coordinate.lon
+  driver_id: str = Field(..., description="Unique identifier for the driver")
+  city_id: int = Field(..., description="City identifier where the driver operates")
+  timestamp: datetime = Field(..., description="Timestamp of registration")
 
 
-class DriverLocationRequest(BaseModel):
-  """Driver location update request."""
+class DriverCoordinateRequest(BaseModel):
+  """Driver coordinate update request."""
 
   driver_id: str = Field(..., description="Driver identifier")
-  location: Location = Field(..., description="Current location")
+  coordinate: Coordinate = Field(..., description="Current coordinate")
   status: str = Field(..., description="Driver status: online/offline/engaged")
-  timestamp: datetime = Field(..., description="Timestamp when location was captured")
+  timestamp: datetime = Field(..., description="Timestamp when coordinate was captured")
 
 
 class TripRequestInput(BaseModel):
   """Trip request input."""
 
   rider_id: str = Field(..., description="Rider identifier")
-  pickup: Location = Field(..., description="Pickup location")
-  drop: Location | None = Field(None, description="Drop-off location")
+  city_id: int = Field(..., description="City identifier")
+  pickup: Coordinate = Field(..., description="Pickup coordinate")
+  drop: Coordinate | None = Field(None, description="Drop-off coordinate")
   timestamp: datetime = Field(..., description="Timestamp when trip was requested")
 
 
@@ -84,9 +71,17 @@ class CompletedTripRequest(BaseModel):
 class WorkingHoursRequest(BaseModel):
   """Driver working hours preferences."""
 
-  start_hour: int = Field(..., ge=0, le=23, description="Start hour (0-23)")
-  end_hour: int = Field(..., ge=0, le=23, description="End hour (0-23)")
-  city_id: int = Field(..., description="City identifier")
+  earliest_start_time: str = Field(
+    ...,
+    description="Earliest start time in HH:MM format (00:01 to 23:59)",
+    pattern=r"^([0-1][0-9]|2[0-3]):[0-5][0-9]$",
+  )
+  latest_start_time: str = Field(
+    ...,
+    description="Latest start time in HH:MM format (00:01 to 23:59)",
+    pattern=r"^([0-1][0-9]|2[0-3]):[0-5][0-9]$",
+  )
+  nr_hours: int = Field(..., ge=1, le=24, description="Number of hours the driver intends to work")
 
 
 class TimeSelectionRequest(BaseModel):

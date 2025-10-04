@@ -2,23 +2,23 @@
 
 from app.schemas.input import (
   CompletedTripRequest,
-  DriverLocationRequest,
+  DriverCoordinateRequest,
   SurgeUpdateRequest,
   TripRequestInput,
   WeatherUpdateRequest,
 )
 from app.schemas.internal import (
-  DriverLocation,
-  Location,
+  Coordinate,
+  DriverCoordinate,
   TripRequest,
   ZoneRecommendation,
 )
 
 __all__ = [
   "CompletedTripRequest",
-  "DriverLocation",
-  "DriverLocationRequest",
-  "Location",
+  "Coordinate",
+  "DriverCoordinate",
+  "DriverCoordinateRequest",
   "SurgeUpdateRequest",
   "TripRequest",
   "TripRequestInput",

@@ -2,11 +2,12 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.schemas.input import (
   CompletedTripRequest,
-  DriverLocationRequest,
+  DriverCoordinateRequest,
+  NewDriverRequest,
   SurgeUpdateRequest,
   TimeSelectionRequest,
   TripRequestInput,
@@ -28,34 +29,128 @@ data_service = DataService()
 
 
 @router.post(
-  "/drivers/location",
+  "/drivers/register",
   status_code=status.HTTP_201_CREATED,
-  summary="Update driver location",
-  description="Store real-time driver location and status in Redis and SQLite",
-  response_description="Location update confirmation with timestamp",
+  summary="Register new driver",
+  description="Register a new driver in the system",
+  response_description="Driver registration confirmation",
   tags=["drivers"],
 )
-async def update_driver_location(request: DriverLocationRequest) -> dict[str, Any]:
-  """Update driver location in real-time.
+async def register_driver(request: NewDriverRequest) -> dict[str, Any]:
+  """Register a new driver.
 
-  Stores driver's current location, status, and timestamp in:
+  Args:
+    request: Driver ID, city ID, and timestamp
+
+  Returns:
+    Success response with driver_id and city_id
+
+  Raises:
+    HTTPException: 500 if registration fails
+
+  """
+  try:
+    result = await data_service.register_driver(
+      request.driver_id, request.city_id, request.timestamp
+    )
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to register driver: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}",
+  status_code=status.HTTP_200_OK,
+  summary="Get driver",
+  description="Get driver information by ID",
+  tags=["drivers"],
+)
+async def get_driver(driver_id: str) -> dict[str, Any]:
+  """Get driver information.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    Success response with driver data
+
+  Raises:
+    HTTPException: 404 if driver not found
+
+  """
+  try:
+    result = await data_service.get_driver(driver_id)
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail=f"Failed to get driver: {e!s}",
+    ) from e
+
+
+@router.put(
+  "/drivers/{driver_id}/city",
+  status_code=status.HTTP_200_OK,
+  summary="Update driver city",
+  description="Update the city of an existing driver",
+  tags=["drivers"],
+)
+async def update_driver_city(driver_id: str, city_id: int) -> dict[str, Any]:
+  """Update the city of an existing driver.
+
+  Args:
+    driver_id: Driver identifier.
+    city_id: New city identifier.
+
+  Returns:
+    Success response with updated driver data.
+
+  Raises:
+    HTTPException: 404 if driver not found
+
+  """
+  try:
+    result = await data_service.update_driver_city(driver_id, city_id)
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail=f"Failed to update driver city: {e!s}",
+    ) from e
+
+
+@router.post(
+  "/drivers/coordinates",
+  status_code=status.HTTP_201_CREATED,
+  summary="Update driver coordinates",
+  description="Store real-time driver coordinates and status in Redis and SQLite",
+  response_description="Coordinate update confirmation with timestamp",
+  tags=["drivers"],
+)
+async def update_driver_coordinates(request: DriverCoordinateRequest) -> dict[str, Any]:
+  """Update driver coordinates in real-time.
+
+  Stores driver's current coordinates, status, and timestamp in:
   - Redis: For fast real-time queries (1h TTL)
   - SQLite: For historical state change analysis
 
   Args:
-    request: Driver location update with ID, location (lat/lon/city), and status
+    request: Driver coordinate update with ID, coordinates (lat/lon), and status
 
   Returns:
-    Success response with stored driver location data
+    Success response with stored driver coordinate data
 
   Raises:
     HTTPException: 500 if storage fails
 
   """
   try:
-    result = await data_service.store_driver_location(
+    result = await data_service.store_driver_coordinates(
       request.driver_id,
-      request.location,
+      request.coordinate,
       request.status,
       request.timestamp,
     )
@@ -63,7 +158,45 @@ async def update_driver_location(request: DriverLocationRequest) -> dict[str, An
   except Exception as e:
     raise HTTPException(
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-      detail=f"Failed to store driver location: {e!s}",
+      detail=f"Failed to store driver coordinates: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/coordinates",
+  status_code=status.HTTP_200_OK,
+  summary="Get driver coordinates",
+  description="Get real-time driver coordinates from Redis",
+  response_description="Driver coordinates with status and timestamp",
+  tags=["drivers"],
+)
+async def get_driver_coordinates(driver_id: str) -> dict[str, Any]:
+  """Get driver coordinates from Redis.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    Success response with driver coordinates, status, and timestamp
+
+  Raises:
+    HTTPException: 404 if driver coordinates not found
+
+  """
+  try:
+    result = await data_service.get_driver_coordinates(driver_id)
+    if not result:
+      raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Coordinates not found for driver {driver_id}",
+      )
+    return {"status": "success", "data": result}
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get driver coordinates: {e!s}",
     ) from e
 
 
@@ -95,6 +228,7 @@ async def create_trip_request(request: TripRequestInput) -> dict[str, Any]:
   try:
     result = await data_service.store_trip_request(
       request.rider_id,
+      request.city_id,
       request.pickup,
       request.drop,
       request.timestamp,
@@ -222,6 +356,7 @@ async def store_completed_trip(request: CompletedTripRequest) -> dict[str, Any]:
       detail=f"Failed to store completed trip: {e!s}",
     ) from e
 
+
 @router.get(
   "/drivers/{driver_id}/state-history",
   status_code=status.HTTP_200_OK,
@@ -309,7 +444,7 @@ async def set_working_hours(driver_id: str, request: WorkingHoursRequest) -> dic
 
   Args:
     driver_id: Driver identifier
-    request: Working hours (start_hour, end_hour, city_id)
+    request: Working hours (earliest_start_time, latest_start_time, nr_hours)
 
   Returns:
     Success response with stored preferences
@@ -321,15 +456,46 @@ async def set_working_hours(driver_id: str, request: WorkingHoursRequest) -> dic
   try:
     result = await data_service.store_working_hours(
       driver_id=driver_id,
-      start_hour=request.start_hour,
-      end_hour=request.end_hour,
-      city_id=request.city_id,
+      earliest_start_time=request.earliest_start_time,
+      latest_start_time=request.latest_start_time,
+      nr_hours=request.nr_hours,
     )
     return {"status": "success", "data": result}
   except Exception as e:
     raise HTTPException(
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
       detail=f"Failed to store working hours: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/preferences",
+  status_code=status.HTTP_200_OK,
+  summary="Get driver working hours",
+  description="Retrieve driver's working hours preferences",
+  response_description="Driver working hours preferences",
+  tags=["drivers", "preferences"],
+)
+async def get_working_hours(driver_id: str) -> dict[str, Any]:
+  """Get driver's working hours preferences.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    Success response with working hours preferences
+
+  Raises:
+    HTTPException: 500 if query fails
+
+  """
+  try:
+    result = await data_service.get_working_hours(driver_id)
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get working hours: {e!s}",
     ) from e
 
 

@@ -6,16 +6,17 @@ between nodes (including self-edges). Utilities are provided to convert graphs
 to Cytoscape elements for interactive UI rendering.
 """
 
+import os
+
 import networkx as nx
 import numpy as np
 import pandas as pd
-
-import os
 
 CSV_PATH = "/workspace/server/data/ride_trips_with_clusters.csv"
 
 # Read CSV
 rides = pd.read_csv(CSV_PATH)
+
 
 # Build graphs per city
 def build_city_graphs(rides: pd.DataFrame) -> dict[int, nx.DiGraph]:
@@ -25,7 +26,7 @@ def build_city_graphs(rides: pd.DataFrame) -> dict[int, nx.DiGraph]:
     city_df = rides[rides["city_id"] == city_id].copy()
     city_df["pickup_node"] = city_df["pickup_cluster"]
     city_df["dropoff_node"] = city_df["dropoff_cluster"]
-    
+
     g: nx.DiGraph = nx.DiGraph()
     # Add nodes
     nodes = set(city_df["pickup_node"]).union(set(city_df["dropoff_node"]))
@@ -35,76 +36,74 @@ def build_city_graphs(rides: pd.DataFrame) -> dict[int, nx.DiGraph]:
       # Get average coordinates for pickup clusters
       pickup_coords = city_df[city_df["pickup_cluster"] == node_id][["pickup_lat", "pickup_lon"]]
       dropoff_coords = city_df[city_df["dropoff_cluster"] == node_id][["drop_lat", "drop_lon"]]
-      
+
       # Combine coordinates from both pickup and dropoff instances
       all_lats = []
       all_lons = []
-      
+
       if not pickup_coords.empty:
         all_lats.extend(pickup_coords["pickup_lat"].tolist())
         all_lons.extend(pickup_coords["pickup_lon"].tolist())
-      
+
       if not dropoff_coords.empty:
         all_lats.extend(dropoff_coords["drop_lat"].tolist())
         all_lons.extend(dropoff_coords["drop_lon"].tolist())
-      
+
       # Calculate average position
       if all_lats and all_lons:
         avg_lat = np.mean(all_lats)
         avg_lon = np.mean(all_lons)
       else:
         avg_lat = avg_lon = 0.0
-      
+
       g.add_node(node_id, lat=avg_lat, lon=avg_lon)
 
     # Add edges with average time and price, plus hourly statistics
     # First convert start_time to datetime and extract hour
     city_df["start_time"] = pd.to_datetime(city_df["start_time"])
     city_df["hour"] = city_df["start_time"].dt.hour
-    
+
     # Group by pickup/dropoff nodes and calculate overall averages
     edge_stats = (
       city_df.groupby(["pickup_node", "dropoff_node"])
-      .agg({
-        "duration_mins": "mean", 
-        "fare_amount": "mean",
-        "ride_id": "count"  # total trips
-      })
+      .agg(
+        {
+          "duration_mins": "mean",
+          "fare_amount": "mean",
+          "ride_id": "count",  # total trips
+        }
+      )
       .reset_index()
     )
-    
+
     # Calculate hourly statistics for each edge
     hourly_stats = (
       city_df.groupby(["pickup_node", "dropoff_node", "hour"])
-      .agg({
-        "ride_id": "count",
-        "duration_mins": "mean",
-        "fare_amount": "mean"
-      })
+      .agg({"ride_id": "count", "duration_mins": "mean", "fare_amount": "mean"})
       .reset_index()
     )
-    
+
     for _, row in edge_stats.iterrows():
       pickup_node = row["pickup_node"]
       dropoff_node = row["dropoff_node"]
-      
+
       # Get hourly data for this edge
       edge_hourly = hourly_stats[
-        (hourly_stats["pickup_node"] == pickup_node) & 
-        (hourly_stats["dropoff_node"] == dropoff_node)
+        (hourly_stats["pickup_node"] == pickup_node)
+        & (hourly_stats["dropoff_node"] == dropoff_node)
       ]
-      
+
       # Create hourly maps
       hourly_trips = {}
       hourly_avg_time = {}
       hourly_avg_price = {}
-      
+
       for _, hourly_row in edge_hourly.iterrows():
         hour = int(hourly_row["hour"])
         hourly_trips[hour] = int(hourly_row["ride_id"])
         hourly_avg_time[hour] = float(hourly_row["duration_mins"])
         hourly_avg_price[hour] = float(hourly_row["fare_amount"])
-      
+
       g.add_edge(
         pickup_node,
         dropoff_node,
@@ -174,29 +173,30 @@ def graph_to_cytoscape_elements(g: nx.DiGraph) -> list[dict]:
 def save_graphs(graphs, output_dir="graphs"):
   """Save graphs to pickle file."""
   import pickle
+
   os.makedirs(output_dir, exist_ok=True)
-  
+
   pickle_path = os.path.join(output_dir, "city_graphs.pkl")
-  with open(pickle_path, 'wb') as f:
+  with open(pickle_path, "wb") as f:
     pickle.dump(graphs, f)
   print(f"✓ Saved graphs to {pickle_path}")
   return pickle_path
 
+
 if __name__ == "__main__":
   graphs = build_city_graphs(rides)
-  
+
   # Save graphs
   save_graphs(graphs)
-  
+
   # Print summary
   total_trips = sum(
-    sum(d.get('total_trips', 0) for _, _, d in g.edges(data=True))
-    for g in graphs.values()
+    sum(d.get("total_trips", 0) for _, _, d in g.edges(data=True)) for g in graphs.values()
   )
-  
+
   print(f"\n✓ Built graphs for {len(graphs)} cities")
   print(f"✓ Total trips: {total_trips:,}")
-  
+
   for city, g in graphs.items():
-    city_trips = sum(d.get('total_trips', 0) for _, _, d in g.edges(data=True))
+    city_trips = sum(d.get("total_trips", 0) for _, _, d in g.edges(data=True))
     print(f"  City {city}: {len(g.nodes)} clusters, {len(g.edges)} routes, {city_trips:,} trips")
