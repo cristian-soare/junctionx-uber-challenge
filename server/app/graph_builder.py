@@ -12,7 +12,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-CSV_PATH = "/workspace/server/data/ride_trips_with_clusters.csv"
+CSV_PATH = "/app/data/ride_trips_with_clusters.csv"
 
 # Read CSV
 rides = pd.read_csv(CSV_PATH)

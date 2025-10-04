@@ -562,13 +562,15 @@ class DataService:
         raise ValueError(f"Driver {driver_id} not found.")
       city_id = driver.city_id
 
-    start_hour = self._time_to_hour(preferences["earliest_start_time"])
-    end_hour = self._time_to_hour(preferences["latest_start_time"])
+    earliest_start_time = self._time_to_hour(preferences["earliest_start_time"])
+    latest_start_time = self._time_to_hour(preferences["latest_start_time"])
+    work_hours = preferences["nr_hours"]
 
     result = await self.compute_service.get_optimal_time(
       driver_id=driver_id,
-      start_hour=start_hour,
-      end_hour=end_hour,
+      start_hour=earliest_start_time,
+      end_hour=latest_start_time,
+      work_hours=work_hours,
       city_id=city_id,
     )
 

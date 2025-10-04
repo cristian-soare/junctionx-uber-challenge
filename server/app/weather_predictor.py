@@ -51,7 +51,7 @@ def get_weather_multiplier(weather_condition):
   return weather_multipliers.get(weather_condition, 1.0)
 
 
-def load_weather_data(csv_path="../data/weather_daily.csv"):
+def load_weather_data(csv_path="/app/data/weather_daily.csv"):
   """Load weather data and train transition model."""
   weather_df = pd.read_csv(csv_path)
   transitions = train_weather_model(weather_df)

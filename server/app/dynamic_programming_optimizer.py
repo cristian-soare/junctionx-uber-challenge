@@ -12,8 +12,8 @@ from datetime import datetime, timedelta
 import networkx as nx
 import pandas as pd
 
-from graph_builder import build_city_graphs, rides
-from weather_predictor import get_weather_for_date
+from app.graph_builder import build_city_graphs, rides
+from app.weather_predictor import get_weather_for_date
 
 
 class MobilityOptimizer:
@@ -54,7 +54,7 @@ class MobilityOptimizer:
     self.graphs = build_city_graphs(rides)
 
     print("Loading surge pricing data...")
-    self.surge_data = pd.read_csv("/workspace/server/data/surge_by_hour.csv")
+    self.surge_data = pd.read_csv("/app/data/surge_by_hour.csv")
     # Create surge lookup: (city_id, hour) -> multiplier
     self.surge_lookup = {}
     for _, row in self.surge_data.iterrows():

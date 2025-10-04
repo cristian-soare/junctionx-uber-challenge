@@ -44,11 +44,20 @@ class ZoneScoresResponse(BaseModel):
 class BestZoneResponse(BaseModel):
   """Best zone for current/selected time."""
 
-  hexagon_id: str = Field(..., description="Best zone hexagon ID")
+  cluster_id: str | None = Field(None, description="Best zone cluster ID")
   score: float = Field(..., description="Zone score")
+  expected_earnings: float = Field(..., description="Expected total earnings")
+  expected_hourly_rate: float = Field(..., description="Expected earnings per hour")
   lat: float = Field(..., description="Zone center latitude")
   lon: float = Field(..., description="Zone center longitude")
-  remaining_hours: int = Field(..., description="Remaining hours from selected time")
+  lat_min: float = Field(..., description="Zone minimum latitude (bounding box)")
+  lat_max: float = Field(..., description="Zone maximum latitude (bounding box)")
+  lon_min: float = Field(..., description="Zone minimum longitude (bounding box)")
+  lon_max: float = Field(..., description="Zone maximum longitude (bounding box)")
+  work_hours: int = Field(..., description="Work hours used in calculation")
+  path_length: int | None = Field(None, description="Length of optimal path")
+  optimal_path: list[str] | None = Field(None, description="Optimal path through clusters")
+  error: str | None = Field(None, description="Error message if any")
 
 
 class DriverSelectionsResponse(BaseModel):
