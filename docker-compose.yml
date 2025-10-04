@@ -26,6 +26,9 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - REDIS_URL=redis://redis:6379
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    env_file:
+      - ./server/.env
     depends_on:
       - redis
       - db

@@ -7,6 +7,7 @@ import MapHomeScreen from "./screens/MapHomeScreen";
 import MapZoneScreen from "./screens/MapZoneScreen";
 import RecommendationsScreen from "./screens/RecommendationsScreen";
 import ScheduleScreen from "./screens/ScheduleScreen";
+import AIChatScreen from "./screens/AIChatScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -18,6 +19,7 @@ export default function App() {
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
         <Stack.Screen name="Recommendations" component={RecommendationsScreen} />
         <Stack.Screen name="MapZone" component={MapZoneScreen} />
+        <Stack.Screen name="AIChat" component={AIChatScreen} />
       </Stack.Navigator>
 
       <StatusBar style="auto" />

@@ -15,6 +15,8 @@ dependencies = [
   "sqlalchemy>=2.0.25",
   "aiosqlite>=0.19.0",
   "redis>=5.0.1",
+  "google-generativeai>=0.3.0",
+  "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -41,10 +43,23 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = "pytest {args:tests}"
+test-ai = "python test_ai_agent.py"
 lint = "ruff check . --fix"
 format = "ruff format ."
 check = ["ruff format .", "ruff check . --fix", "pytest tests/"]
 dev = "uvicorn app.main:app --reload --host 0.0.0.0"
+server = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+# AI Agent development environment
+[tool.hatch.envs.ai]
+dependencies = [
+  "jupyter>=1.0.0",
+  "ipython>=8.0.0",
+]
+
+[tool.hatch.envs.ai.scripts]
+notebook = "jupyter notebook"
+test-ai = "python test_ai_agent.py"
 
 [tool.ruff]
 line-length = 100

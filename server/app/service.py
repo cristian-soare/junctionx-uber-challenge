@@ -813,3 +813,56 @@ class DataService:
       "zone_center": zone_center,
       "zone_corners": zone_corners,
     }
+
+  # AI Agent supporting methods
+  async def get_driver_preferences(self, driver_id: str) -> DriverPreferences | None:
+    """Get driver preferences for AI context."""
+    try:
+      working_hours = await self.get_working_hours(driver_id)
+      if working_hours:
+        return DriverPreferences(
+          driver_id=driver_id,
+          preferred_start_time=working_hours.get("preferred_start_time", 8),
+          preferred_end_time=working_hours.get("preferred_end_time", 18),
+          break_duration_minutes=working_hours.get("break_duration_minutes", 30),
+          preferred_city=working_hours.get("preferred_city", "Unknown")
+        )
+      return None
+    except Exception:
+      return None
+
+  async def get_recent_completed_trips(self, driver_id: str, limit: int = 10) -> list[CompletedTrip]:
+    """Get recent completed trips for a driver."""
+    try:
+      async with db_manager.get_sqlite_connection() as conn:
+        query = select(CompletedTrip).where(
+          CompletedTrip.driver_id == driver_id
+        ).order_by(CompletedTrip.timestamp.desc()).limit(limit)
+        
+        result = await conn.execute(query)
+        trips = result.scalars().all()
+        return list(trips)
+    except Exception:
+      return []
+
+  async def get_current_surge_data(self) -> list[dict[str, Any]]:
+    """Get current surge data from Redis."""
+    try:
+      surge_data = await db_manager.redis.get("current_surge_data")
+      if surge_data:
+        import json
+        return json.loads(surge_data)
+      return []
+    except Exception:
+      return []
+
+  async def get_current_weather(self) -> dict[str, Any]:
+    """Get current weather data."""
+    try:
+      weather_data = await db_manager.redis.get("current_weather")
+      if weather_data:
+        import json
+        return json.loads(weather_data)
+      return {"conditions": "Unknown"}
+    except Exception:
+      return {"conditions": "Unknown"}
