@@ -1,0 +1,24 @@
+=== DAILY SURGE PATTERN INSIGHTS ===
+• WEEKDAY ADVANTAGE: 0.0% higher surge on weekdays
+• BEST DAY: Tuesday with 1.22 average surge
+• WORST DAY: Tuesday with 1.12 average surge
+
+=== WEATHER CORRELATION INSIGHTS ===
+• BEST WEATHER CONDITION: snow (6.9 EUR avg)
+• WORST WEATHER CONDITION: rain (1.6 EUR avg)
+
+=== EPH vs DISTANCE INSIGHTS ===
+• OVERALL DISTANCE CORRELATION: 0.497 (Moderate positive)
+  Sample size: 2,970 trips
+• BEST DISTANCE-EPH CITY: City 4 (r=0.534)
+• WORST DISTANCE-EPH CITY: City 1 (r=0.436)
+• HIGHEST EPH CITY: City 4 (28.3 EUR/h avg)
+• STRONGEST EPH PREDICTOR: duration_mins (r=-0.669)
+• STRONG EPH PREDICTORS: 0 factors identified
+
+=== MODEL BUILDING RECOMMENDATIONS ===
+• DAY-SPECIFIC FEATURES: Use individual day-of-week features instead of weekly averages
+• WEATHER INTEGRATION: Include significant weather correlations as model features
+• DISTANCE OPTIMIZATION: Account for city-specific distance-EPH relationships
+• TEMPORAL PATTERNS: Separate weekend and weekday models may perform better
+• CITY CUSTOMIZATION: Different cities show different correlation patterns

@@ -1,0 +1,6 @@
+city_id,correlation_distance_eph,p_value,significant,sample_size,avg_distance,avg_eph,max_eph,eph_std
+3,0.5005,0.0,True,610,5.84,26.99,117.73,19.26
+4,0.5338,0.0,True,529,5.82,28.28,115.89,20.96
+2,0.4416,0.0,True,557,5.74,26.02,126.9,18.38
+1,0.436,0.0,True,555,5.81,25.25,116.55,16.76
+5,0.4984,0.0,True,594,5.82,27.69,131.91,20.76

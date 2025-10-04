@@ -1,0 +1,10 @@
+weather,count,mean,std,min,max,earnings_metric
+clear,3700,5.136,5.75,0.0,43.83,rides_net_earnings
+rain,1470,5.272,5.893,0.0,32.76,rides_net_earnings
+snow,100,5.16,6.045,0.0,35.18,rides_net_earnings
+clear,3700,1.656,1.965,0.0,13.18,eats_net_earnings
+rain,1470,1.599,1.914,0.0,11.64,eats_net_earnings
+snow,100,1.721,2.045,0.0,8.14,eats_net_earnings
+clear,3700,6.792,4.461,1.61,43.83,total_net_earnings
+rain,1470,6.872,4.639,1.78,32.76,total_net_earnings
+snow,100,6.882,4.773,2.06,35.18,total_net_earnings

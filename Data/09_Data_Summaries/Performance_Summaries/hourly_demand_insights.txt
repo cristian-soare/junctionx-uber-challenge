@@ -1,0 +1,29 @@
+=== HOURLY DEMAND PATTERNS ANALYSIS ===
+
+🚗 RIDES SERVICE INSIGHTS:
+• Peak rides demand: 12:00 (22.0 avg rides)
+• Lowest rides demand: 4:00 (15.0 avg rides)
+• Peak-to-low ratio: 1.5x
+
+🍔 EATS SERVICE INSIGHTS:
+• Peak eats demand: 11:00 (17.6 avg orders)
+• Lowest eats demand: 21:00 (12.3 avg orders)
+• Peak-to-low ratio: 1.4x
+
+📅 DAY-SPECIFIC PATTERNS:
+• Highest demand day: Thursday (827 total)
+• Lowest demand day: Friday (742 total)
+• Weekday advantage: 0.6% higher demand
+
+🚙 VEHICLE TYPE INSIGHTS:
+• Most popular vehicle type: UberX (1711 rides)
+• Least popular vehicle type: UberBlack (180 rides)
+• UberX peak hour: 12:00
+• UberPool peak hour: 7:00
+• UberGreen peak hour: 1:00
+
+⚡ OPTIMIZATION RECOMMENDATIONS:
+• Schedule drivers during identified peak hours for each service
+• Deploy specific vehicle types during their optimal hours
+• Adjust surge pricing based on hourly demand patterns
+• Coordinate marketing campaigns with peak demand times
