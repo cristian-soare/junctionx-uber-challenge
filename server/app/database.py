@@ -267,6 +267,140 @@ class DatabaseManager:
 
     await self.redis_client.publish(channel, message)
 
+  # DP Computation Caching
+  async def set_dp_result(
+    self,
+    cache_key: str,
+    earnings: float,
+    path: list[str],
+    ttl_seconds: int = 3600,
+  ) -> None:
+    """Cache DP computation result in Redis.
+
+    Args:
+        cache_key: Unique key for this DP computation
+        earnings: Expected total earnings
+        path: Optimal path (list of cluster IDs)
+        ttl_seconds: Time to live in seconds (default: 1 hour)
+
+    """
+    if not self.redis_client:
+      return
+
+    data = {
+      "earnings": earnings,
+      "path": path,
+      "cached_at": datetime.now(UTC).isoformat(),
+    }
+    await self.redis_client.setex(
+      f"cache:dp:{cache_key}",
+      timedelta(seconds=ttl_seconds),
+      json.dumps(data),
+    )
+
+  async def get_dp_result(self, cache_key: str) -> dict[str, Any] | None:
+    """Get cached DP computation result from Redis.
+
+    Args:
+        cache_key: Unique key for this DP computation
+
+    Returns:
+        Dict with earnings and path, or None if not cached
+
+    """
+    if not self.redis_client:
+      return None
+
+    data = await self.redis_client.get(f"cache:dp:{cache_key}")
+    return json.loads(data) if data else None
+
+  async def set_best_starting_positions(
+    self,
+    city_id: int,
+    start_hour: int,
+    work_hours: int,
+    date: str,
+    positions: list[tuple[str, float, list[str]]],
+    ttl_seconds: int = 3600,
+  ) -> None:
+    """Cache best starting positions result.
+
+    Args:
+        city_id: City identifier
+        start_hour: Starting hour (0-23)
+        work_hours: Number of hours to work
+        date: Date string (YYYY-MM-DD)
+        positions: List of (cluster, earnings, path) tuples
+        ttl_seconds: Time to live in seconds (default: 1 hour)
+
+    """
+    if not self.redis_client:
+      return
+
+    key = f"cache:best_positions:{city_id}:{start_hour}:{work_hours}:{date}"
+    # Convert tuples to serializable format
+    serializable = [
+      {"cluster": cluster, "earnings": earnings, "path": path}
+      for cluster, earnings, path in positions
+    ]
+    data = {
+      "positions": serializable,
+      "cached_at": datetime.now(UTC).isoformat(),
+    }
+    await self.redis_client.setex(
+      key,
+      timedelta(seconds=ttl_seconds),
+      json.dumps(data),
+    )
+
+  async def get_best_starting_positions(
+    self, city_id: int, start_hour: int, work_hours: int, date: str
+  ) -> list[tuple[str, float, list[str]]] | None:
+    """Get cached best starting positions.
+
+    Args:
+        city_id: City identifier
+        start_hour: Starting hour (0-23)
+        work_hours: Number of hours to work
+        date: Date string (YYYY-MM-DD)
+
+    Returns:
+        List of (cluster, earnings, path) tuples, or None if not cached
+
+    """
+    if not self.redis_client:
+      return None
+
+    key = f"cache:best_positions:{city_id}:{start_hour}:{work_hours}:{date}"
+    data = await self.redis_client.get(key)
+    if not data:
+      return None
+
+    parsed = json.loads(data)
+    # Convert back to tuples
+    return [
+      (item["cluster"], item["earnings"], item["path"]) for item in parsed["positions"]
+    ]
+
+  async def invalidate_dp_cache(self, pattern: str = "cache:dp:*") -> int:
+    """Invalidate DP cache entries matching pattern.
+
+    Args:
+        pattern: Redis key pattern to match (default: all DP caches)
+
+    Returns:
+        Number of keys deleted
+
+    """
+    if not self.redis_client:
+      return 0
+
+    deleted = 0
+    async for key in self.redis_client.scan_iter(match=pattern):
+      await self.redis_client.delete(key)
+      deleted += 1
+    return deleted
+
 
 # Global database manager instance
 db_manager = DatabaseManager()

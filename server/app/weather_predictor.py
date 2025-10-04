@@ -1,5 +1,8 @@
 import pandas as pd
 
+# Global cache for weather data
+_weather_cache = {"df": None, "transitions": None}
+
 
 def train_weather_model(weather_df):
   """Compute transition probabilities P(next | current) per city."""
@@ -52,18 +55,32 @@ def get_weather_multiplier(weather_condition):
 
 
 def load_weather_data(csv_path="/app/data/weather_daily.csv"):
-  """Load weather data and train transition model."""
+  """Load weather data and train transition model.
+
+  OPTIMIZED: Caches data in memory to avoid repeated CSV reads.
+  """
+  # Check cache first
+  if _weather_cache["df"] is not None and _weather_cache["transitions"] is not None:
+    return _weather_cache["df"], _weather_cache["transitions"]
+
+  # Load and cache
   weather_df = pd.read_csv(csv_path)
   transitions = train_weather_model(weather_df)
+
+  _weather_cache["df"] = weather_df
+  _weather_cache["transitions"] = transitions
+
   return weather_df, transitions
 
 
 def get_weather_for_date(city_id, date):
   """Get weather prediction and multiplier for a city on a specific date.
 
+  OPTIMIZED: Uses cached weather data.
+
   Args:
       city_id: City ID
-      date: Date string (YYYY-MM-DD)
+      date: Date string (YYYY-MM-DD) or datetime object
 
   Returns:
       Tuple of (weather_condition, weather_multiplier)

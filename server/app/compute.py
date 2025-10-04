@@ -1,4 +1,10 @@
-"""Compute service for driver optimization ML inference."""
+"""Compute service for driver optimization ML inference.
+
+PERFORMANCE OPTIMIZATIONS:
+- Uses singleton MobilityOptimizer (graphs loaded once)
+- Leverages Redis caching for DP results
+- Async methods for better concurrency
+"""
 
 from typing import Any
 from datetime import datetime, timedelta
@@ -9,15 +15,23 @@ from app.dynamic_programming_optimizer import MobilityOptimizer
 
 
 class ComputeService:
-  """Service for driver optimization ML inference."""
+  """Service for driver optimization ML inference.
+
+  OPTIMIZED: Uses singleton optimizer instance for fast graph access.
+  """
+
+  # Class-level optimizer (singleton)
+  _optimizer: MobilityOptimizer | None = None
 
   def __init__(self):
     """Initialize the compute service with the DP optimizer."""
-    self.optimizer = MobilityOptimizer(
-      epsilon=0.1,
-      gamma=0.95,
-      lambda_floor=0.5
-    )
+    # Use singleton optimizer (graphs loaded only once)
+    if ComputeService._optimizer is None:
+      print("Initializing MobilityOptimizer singleton...")
+      ComputeService._optimizer = MobilityOptimizer(
+        epsilon=0.1, gamma=0.95, lambda_floor=0.5, use_cache=True
+      )
+    self.optimizer = ComputeService._optimizer
 
   async def _predict_optimal_zone(
     self,
@@ -193,12 +207,12 @@ class ComputeService:
 
     # Use DP optimizer to compute expected earnings for this cluster
     try:
-      expected_earnings, _ = self.optimizer.solve_dp(
+      expected_earnings, _ = await self.optimizer.solve_dp_async(
         city_id=city_id,
         start_cluster=zone_id,
         start_hour=start_time,
         work_hours=remaining_hours,
-        start_date=date
+        start_date=date,
       )
       return expected_earnings
     except Exception as e:
@@ -275,12 +289,12 @@ class ComputeService:
     for candidate_hour in hours_range:
       # For this start hour, find the best starting cluster using DP
       try:
-        best_positions = self.optimizer.analyze_best_starting_positions(
+        best_positions = await self.optimizer.analyze_best_starting_positions_async(
           city_id=city_id,
           start_hour=candidate_hour,
           work_hours=work_hours,
           start_date=date,
-          top_k=1  # We only need the best one
+          top_k=1,  # We only need the best one
         )
 
         if best_positions:
@@ -341,12 +355,12 @@ class ComputeService:
 
     # If no starting cluster specified, find the best one
     if start_cluster is None:
-      best_positions = self.optimizer.analyze_best_starting_positions(
+      best_positions = await self.optimizer.analyze_best_starting_positions_async(
         city_id=city_id,
         start_hour=start_hour,
         work_hours=work_hours,
         start_date=date,
-        top_k=1
+        top_k=1,
       )
 
       if not best_positions:
@@ -355,12 +369,12 @@ class ComputeService:
       start_cluster, expected_earnings, optimal_path = best_positions[0]
     else:
       # Use specified cluster
-      expected_earnings, optimal_path = self.optimizer.solve_dp(
+      expected_earnings, optimal_path = await self.optimizer.solve_dp_async(
         city_id=city_id,
         start_cluster=start_cluster,
         start_hour=start_hour,
         work_hours=work_hours,
-        start_date=date
+        start_date=date,
       )
 
     # Get cluster coordinates from CSV
@@ -445,12 +459,12 @@ class ComputeService:
 
       # Find best starting cluster for this time using DP optimizer
       try:
-        best_positions = self.optimizer.analyze_best_starting_positions(
+        best_positions = await self.optimizer.analyze_best_starting_positions_async(
           city_id=city_id,
           start_hour=time,
           work_hours=hours_to_work,
           start_date=date,
-          top_k=1  # Only need the best one
+          top_k=1,  # Only need the best one
         )
 
         if best_positions:
@@ -538,12 +552,12 @@ class ComputeService:
     for cluster in clusters:
       try:
         # Use DP to compute optimal earnings starting from this cluster
-        expected_earnings, optimal_path = self.optimizer.solve_dp(
+        expected_earnings, optimal_path = await self.optimizer.solve_dp_async(
           city_id=city_id,
           start_cluster=cluster,
           start_hour=start_time,
           work_hours=work_hours,
-          start_date=date
+          start_date=date,
         )
 
         # Get cluster coordinates from CSV
@@ -625,12 +639,12 @@ class ComputeService:
 
     # Use DP optimizer to find the best starting position
     try:
-      best_positions = self.optimizer.analyze_best_starting_positions(
+      best_positions = await self.optimizer.analyze_best_starting_positions_async(
         city_id=city_id,
         start_hour=start_time,
         work_hours=remaining_hours,
         start_date=date,
-        top_k=1  # Only need the best one
+        top_k=1,  # Only need the best one
       )
 
       if best_positions:
@@ -733,6 +747,28 @@ class ComputeService:
       'lon_max': 0.0,
       'lon_avg': 0.0,
     })
+
+  async def get_zone_corners(self, hexagon_id: str, city_id: int) -> list[dict[str, float]]:
+    """Get corner coordinates for a zone/cluster.
+
+    Args:
+        hexagon_id: Hexagon/cluster identifier
+        city_id: City identifier
+
+    Returns:
+        List of corner coordinates with lat/lon
+
+    """
+    # Get zone bounding box from coordinates
+    coords = self._get_zone_coordinates(hexagon_id)
+
+    # Return corners as a rectangle (4 corners)
+    return [
+      {"lat": coords["lat_min"], "lon": coords["lon_min"]},  # Bottom-left
+      {"lat": coords["lat_min"], "lon": coords["lon_max"]},  # Bottom-right
+      {"lat": coords["lat_max"], "lon": coords["lon_max"]},  # Top-right
+      {"lat": coords["lat_max"], "lon": coords["lon_min"]},  # Top-left
+    ]
 
   # def calculate_zone_center(
   #   self, hexagon_coordinates: list[tuple[float, float]]

@@ -5,15 +5,37 @@ over a given time horizon in a city-hour mobility graph system.
 
 The algorithm uses backward induction to compute the optimal expected earnings
 for a driver starting at a specific cluster and hour, planning to work for L hours.
+
+PERFORMANCE OPTIMIZATIONS:
+- Singleton pattern to prevent graph rebuilding
+- Graph serialization to pickle/Redis for fast loading
+- Transition probability caching per (city, hour)
+- DP result memoization with configurable TTL
 """
 
 from datetime import datetime, timedelta
+from typing import ClassVar
+import pickle
+from pathlib import Path
 
 import networkx as nx
 import pandas as pd
 
 from app.graph_builder import build_city_graphs, rides
 from app.weather_predictor import get_weather_for_date
+
+# Import db_manager for Redis caching (lazy import to avoid circular dependency)
+_db_manager = None
+
+
+def get_db_manager():
+  """Get database manager instance (lazy import)."""
+  global _db_manager
+  if _db_manager is None:
+    from app.database import db_manager
+
+    _db_manager = db_manager
+  return _db_manager
 
 
 class MobilityOptimizer:
@@ -23,7 +45,18 @@ class MobilityOptimizer:
   - Nodes represent pickup/dropoff clusters
   - Edges store hourly statistics (trip counts, fares, durations)
   - DP computes optimal L-hour strategies starting from any cluster/hour
+
+  SINGLETON PATTERN: Only one instance is created to avoid rebuilding graphs.
   """
+
+  _instance: ClassVar["MobilityOptimizer | None"] = None
+  _initialized: ClassVar[bool] = False
+
+  def __new__(cls, *args, **kwargs):
+    """Implement singleton pattern to prevent multiple graph loads."""
+    if cls._instance is None:
+      cls._instance = super().__new__(cls)
+    return cls._instance
 
   def __init__(
     self,
@@ -31,6 +64,7 @@ class MobilityOptimizer:
     gamma: float = 0.95,
     lambda_floor: float = 0.5,
     weather_multipliers: dict[str, float] | None = None,
+    use_cache: bool = True,
   ):
     """Initialize the optimizer with parameters.
 
@@ -39,18 +73,52 @@ class MobilityOptimizer:
         gamma: Discount factor for future earnings (0 < gamma <= 1)
         lambda_floor: Minimum demand rate to prevent division by zero
         weather_multipliers: Dictionary mapping weather conditions to multipliers
+        use_cache: Whether to use cached graphs (default: True)
 
     """
+    # Only initialize once (singleton pattern)
+    if MobilityOptimizer._initialized:
+      return
+
     self.epsilon = epsilon
     self.gamma = gamma
     self.lambda_floor = lambda_floor
+    self.use_cache = use_cache
 
-    # Load data
+    # Caches for intermediate results
+    self._transition_prob_cache: dict = {}  # (city_id, hour) -> transition_probs
+    self._dp_cache: dict = {}  # For in-memory DP result caching
+
+    # Load data (with caching)
     self._load_data()
 
+    MobilityOptimizer._initialized = True
+
+  def _get_cache_path(self) -> Path:
+    """Get path for cached graph pickle file."""
+    cache_dir = Path(__file__).parent.parent / "data" / "cache"
+    cache_dir.mkdir(exist_ok=True)
+    return cache_dir / "city_graphs.pkl"
+
   def _load_data(self):
-    """Load graphs, surge data"""
-    print("Loading mobility graphs...")
+    """Load graphs and surge data with caching support."""
+    cache_path = self._get_cache_path()
+
+    # Try to load from cache first
+    if self.use_cache and cache_path.exists():
+      try:
+        print(f"Loading graphs from cache: {cache_path}")
+        with open(cache_path, "rb") as f:
+          cached_data = pickle.load(f)
+          self.graphs = cached_data["graphs"]
+          self.surge_lookup = cached_data["surge_lookup"]
+        print(f"✓ Loaded {len(self.graphs)} cities from cache (fast path)")
+        return
+      except Exception as e:
+        print(f"Cache load failed: {e}, rebuilding...")
+
+    # Build from scratch
+    print("Building mobility graphs from CSV...")
     self.graphs = build_city_graphs(rides)
 
     print("Loading surge pricing data...")
@@ -62,25 +130,51 @@ class MobilityOptimizer:
 
     print(f"✓ Loaded data for {len(self.graphs)} cities")
 
+    # Save to cache for next time
+    if self.use_cache:
+      try:
+        print(f"Caching graphs to {cache_path}...")
+        with open(cache_path, "wb") as f:
+          pickle.dump(
+            {
+              "graphs": self.graphs,
+              "surge_lookup": self.surge_lookup,
+            },
+            f,
+            protocol=pickle.HIGHEST_PROTOCOL,
+          )
+        print("✓ Graph cache saved")
+      except Exception as e:
+        print(f"Warning: Failed to save cache: {e}")
+
   def get_surge_multiplier(self, city_id: int, hour: int) -> float:
     """Get surge multiplier for a city and hour."""
     return self.surge_lookup.get((city_id, hour), 1.0)
 
   def compute_transition_probabilities(
-    self, graph: nx.DiGraph, hour: int
+    self, graph: nx.DiGraph, hour: int, city_id: int | None = None
   ) -> dict[str, dict[str, float]]:
     """Compute transition probabilities P_h(i->j) for a given hour.
 
     Uses Laplace smoothing: P_h(i->j) = (count_ij[h] + ε) / (Σ_k count_ik[h] + ε·|V|)
 
+    OPTIMIZED: Caches results per (city_id, hour) to avoid recomputation.
+
     Args:
         graph: NetworkX graph for the city
         hour: Hour of day (0-23)
+        city_id: Optional city ID for cache key
 
     Returns:
         Dictionary where P[i][j] = probability of going from cluster i to j
 
     """
+    # Check cache first
+    if city_id is not None:
+      cache_key = (city_id, hour)
+      if cache_key in self._transition_prob_cache:
+        return self._transition_prob_cache[cache_key]
+
     nodes = list(graph.nodes())
     n_nodes = len(nodes)
     P = {}
@@ -110,6 +204,10 @@ class MobilityOptimizer:
         numerator = hourly_counts[j] + self.epsilon
         P[i][j] = numerator / denominator
 
+    # Cache the result
+    if city_id is not None:
+      self._transition_prob_cache[cache_key] = P
+
     return P
 
   def compute_earning_rate(
@@ -130,8 +228,8 @@ class MobilityOptimizer:
     """
     nodes = list(graph.nodes())
 
-    # Get transition probabilities for this hour
-    P = self.compute_transition_probabilities(graph, hour)
+    # Get transition probabilities for this hour (with caching)
+    P = self.compute_transition_probabilities(graph, hour, city_id)
 
     if cluster not in P:
       return 0.0  # Cluster not in graph
@@ -177,15 +275,31 @@ class MobilityOptimizer:
 
     return earning_rate
 
-  def solve_dp(
+  def _get_dp_cache_key(
+    self, city_id: int, start_cluster: str, start_hour: int, work_hours: int, start_date: datetime
+  ) -> str:
+    """Generate cache key for DP result.
+
+    Args:
+        city_id: City identifier
+        start_cluster: Starting cluster ID
+        start_hour: Starting hour (0-23)
+        work_hours: Number of hours to work
+        start_date: Starting date
+
+    Returns:
+        Cache key string
+
+    """
+    date_str = start_date.strftime("%Y-%m-%d")
+    return f"dp:{city_id}:{start_cluster}:{start_hour}:{work_hours}:{date_str}"
+
+  async def solve_dp_async(
     self, city_id: int, start_cluster: str, start_hour: int, work_hours: int, start_date: datetime
   ) -> tuple[float, list[str]]:
-    """Solve the dynamic programming problem for optimal L-hour strategy.
+    """Async version of solve_dp with Redis caching.
 
-    Now includes time-aware transitions that track cumulative travel and wait times.
-
-    V_t(i) = best over j: fare_ij + γ * V_{t+time_ij}(j)
-    where time_ij includes both travel time and expected wait time
+    Checks Redis cache before computing, stores result after computation.
 
     Args:
         city_id: City identifier
@@ -198,6 +312,57 @@ class MobilityOptimizer:
         Tuple of (total_expected_earnings, optimal_strategy)
 
     """
+    cache_key = self._get_dp_cache_key(city_id, start_cluster, start_hour, work_hours, start_date)
+
+    # Check Redis cache first
+    try:
+      db = get_db_manager()
+      cached = await db.get_dp_result(cache_key)
+      if cached:
+        return (cached["earnings"], cached["path"])
+    except Exception as e:
+      print(f"Redis cache read error: {e}")
+
+    # Compute using sync method
+    result = self.solve_dp(city_id, start_cluster, start_hour, work_hours, start_date)
+
+    # Cache in Redis
+    try:
+      db = get_db_manager()
+      await db.set_dp_result(cache_key, result[0], result[1], ttl_seconds=3600)
+    except Exception as e:
+      print(f"Redis cache write error: {e}")
+
+    return result
+
+  def solve_dp(
+    self, city_id: int, start_cluster: str, start_hour: int, work_hours: int, start_date: datetime
+  ) -> tuple[float, list[str]]:
+    """Solve the dynamic programming problem for optimal L-hour strategy.
+
+    Now includes time-aware transitions that track cumulative travel and wait times.
+
+    V_t(i) = best over j: fare_ij + γ * V_{t+time_ij}(j)
+    where time_ij includes both travel time and expected wait time
+
+    OPTIMIZED: Results are cached in-memory to avoid recomputation.
+
+    Args:
+        city_id: City identifier
+        start_cluster: Starting cluster ID
+        start_hour: Starting hour (0-23)
+        work_hours: Number of hours to work (L)
+        start_date: Starting date for weather lookup
+
+    Returns:
+        Tuple of (total_expected_earnings, optimal_strategy)
+
+    """
+    # Check in-memory cache first
+    cache_key = self._get_dp_cache_key(city_id, start_cluster, start_hour, work_hours, start_date)
+    if cache_key in self._dp_cache:
+      return self._dp_cache[cache_key]
+
     if city_id not in self.graphs:
       raise ValueError(f"City {city_id} not found in graphs")
 
@@ -312,7 +477,54 @@ class MobilityOptimizer:
       else:
         break
 
-    return total_earnings, optimal_path
+    # Cache the result before returning
+    result = (total_earnings, optimal_path)
+    self._dp_cache[cache_key] = result
+
+    return result
+
+  async def analyze_best_starting_positions_async(
+    self, city_id: int, start_hour: int, work_hours: int, start_date: datetime, top_k: int = 5
+  ) -> list[tuple[str, float, list[str]]]:
+    """Async analyze best starting positions with Redis caching.
+
+    Args:
+        city_id: City identifier
+        start_hour: Starting hour (0-23)
+        work_hours: Number of hours to work
+        start_date: Starting date
+        top_k: Number of top positions to return
+
+    Returns:
+        List of (cluster, expected_earnings, optimal_path) tuples, sorted by earnings
+
+    """
+    date_str = start_date.strftime("%Y-%m-%d")
+
+    # Check Redis cache first
+    try:
+      db = get_db_manager()
+      cached = await db.get_best_starting_positions(city_id, start_hour, work_hours, date_str)
+      if cached:
+        return cached[:top_k]
+    except Exception as e:
+      print(f"Redis cache read error: {e}")
+
+    # Compute using sync method
+    results = self.analyze_best_starting_positions(
+      city_id, start_hour, work_hours, start_date, top_k=100
+    )  # Cache more than requested
+
+    # Cache in Redis
+    try:
+      db = get_db_manager()
+      await db.set_best_starting_positions(
+        city_id, start_hour, work_hours, date_str, results, ttl_seconds=3600
+      )
+    except Exception as e:
+      print(f"Redis cache write error: {e}")
+
+    return results[:top_k]
 
   def analyze_best_starting_positions(
     self, city_id: int, start_hour: int, work_hours: int, start_date: datetime, top_k: int = 5
