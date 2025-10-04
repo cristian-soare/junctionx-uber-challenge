@@ -3,25 +3,23 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 
-import CopilotScreen from "./screens/CopilotScreen";
-import MainScreen from "./screens/MainScreen";
-import WellbeingScreen from "./screens/WellbeingScreen";
+import MapHomeScreen from "./screens/MapHomeScreen";
+import MapZoneScreen from "./screens/MapZoneScreen";
+import RecommendationsScreen from "./screens/RecommendationsScreen";
+import ScheduleScreen from "./screens/ScheduleScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          animation: "slide_from_right",
-        }}
-      >
-        <Stack.Screen name="Main" component={MainScreen} />
-        <Stack.Screen name="Copilot" component={CopilotScreen} />
-        <Stack.Screen name="Wellbeing" component={WellbeingScreen} />
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="MapHome" component={MapHomeScreen} />
+        <Stack.Screen name="Schedule" component={ScheduleScreen} />
+        <Stack.Screen name="Recommendations" component={RecommendationsScreen} />
+        <Stack.Screen name="MapZone" component={MapZoneScreen} />
       </Stack.Navigator>
+
       <StatusBar style="auto" />
     </NavigationContainer>
   );
