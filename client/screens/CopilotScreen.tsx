@@ -1,61 +1,146 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import React from "react";
-import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CopilotScreen() {
   const navigation = useNavigation<any>();
 
+  const [messages, setMessages] = useState([
+    { role: "model", content: "👋 Hey driver! How can I help you today?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    const userMessage = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      // TODO: 🔌 Integrate with your backend (ai/flows/chat.ts)
+      // For now, use mock data
+      const response =
+        "🚗 Based on your current schedule, this might be a good time for a short break!";
+      setMessages((prev) => [...prev, { role: "model", content: response }]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={Platform.OS === "ios" ? "dark-content" : "light-content"} />
-      <View style={styles.container}>
-        <Text style={styles.title}>AI Copilot</Text>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.navigate("Main")}>
+            <Ionicons name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerText}>AI Copilot</Text>
+          <View style={{ width: 24 }} />
+        </View>
 
-        <Text style={styles.subtitle}>
-          Personalized insights, predictive ride suggestions, and well-being tips.
-        </Text>
+        {/* Messages */}
+        <FlatList
+          data={messages}
+          keyExtractor={(_, i) => i.toString()}
+          renderItem={({ item }) => (
+            <View
+              style={[
+                styles.messageBubble,
+                item.role === "user" ? styles.userBubble : styles.aiBubble,
+              ]}
+            >
+              <Text
+                style={{
+                  color: item.role === "user" ? "#fff" : "#000",
+                }}
+              >
+                {item.content}
+              </Text>
+            </View>
+          )}
+          contentContainerStyle={styles.chatContainer}
+        />
 
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate("Main")}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-      </View>
+        {loading && <ActivityIndicator size="small" color="#007AFF" />}
+
+        {/* Input bar */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={input}
+            placeholder="Ask your copilot..."
+            onChangeText={setInput}
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+            <Ionicons name="send" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#fff", // base color for this page
-  },
-  container: {
-    flex: 1,
-    justifyContent: "center",
+  safeArea: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, padding: 16 },
+  header: {
+    flexDirection: "row",
     alignItems: "center",
-    padding: 24,
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 12,
-    color: "#000",
+  headerText: { fontSize: 18, fontWeight: "bold" },
+  chatContainer: { flexGrow: 1, paddingVertical: 10 },
+  messageBubble: {
+    padding: 12,
+    borderRadius: 16,
+    marginVertical: 6,
+    maxWidth: "80%",
   },
-  subtitle: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#444",
-    marginBottom: 24,
-    paddingHorizontal: 16,
+  userBubble: {
+    backgroundColor: "#007AFF",
+    alignSelf: "flex-end",
   },
-  backButton: {
-    backgroundColor: "#000",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+  aiBubble: {
+    backgroundColor: "#F2F2F2",
+    alignSelf: "flex-start",
   },
-  backText: {
-    color: "#fff",
-    fontSize: 16,
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F2F2",
+    borderRadius: 25,
+    paddingHorizontal: 10,
+    marginTop: 10,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 10,
+    height: 45,
+  },
+  sendButton: {
+    backgroundColor: "#007AFF",
+    borderRadius: 20,
+    padding: 10,
   },
 });

@@ -3,22 +3,33 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 
-import MapHomeScreen from "./screens/MapHomeScreen";
-import MapZoneScreen from "./screens/MapZoneScreen";
-import RecommendationsScreen from "./screens/RecommendationsScreen";
-import ScheduleScreen from "./screens/ScheduleScreen";
 import AIChatScreen from "./screens/AIChatScreen";
+import CopilotScreen from "./screens/CopilotScreen";
+import MapHomeScreen from "./screens/MapHomeScreen";
+import WellbeingScreen from "./screens/WellbeingScreen";
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="MapHome" component={MapHomeScreen} />
-        <Stack.Screen name="Schedule" component={ScheduleScreen} />
-        <Stack.Screen name="Recommendations" component={RecommendationsScreen} />
-        <Stack.Screen name="MapZone" component={MapZoneScreen} />
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      >
+        {/* 🏠 Main app entry (you can later choose which is default) */}
+        <Stack.Screen name="Main" component={MapHomeScreen} />
+
+        {/* 🗺️ Map / Driver Home
+        <Stack.Screen name="MapHome" component={MapHomeScreen} /> */}
+
+        {/* 🤖 AI Copilot Chat */}
+        <Stack.Screen name="Copilot" component={CopilotScreen} />
+
+        {/* 💆‍♂️ Wellbeing page (if you keep it) */}
+        <Stack.Screen name="Wellbeing" component={WellbeingScreen} />
         <Stack.Screen name="AIChat" component={AIChatScreen} />
       </Stack.Navigator>
 
