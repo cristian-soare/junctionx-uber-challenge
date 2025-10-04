@@ -15,8 +15,8 @@
         "oven.bun-vscode",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "vitest.explorer",
-        "ms-playwright.playwright"
+        "ms-playwright.playwright",
+        "Orta.vscode-jest"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/root/.local/share/hatch/env/virtual/junctionx-uber-server/*/bin/python",
@@ -27,9 +27,8 @@
         ],
         "python.linting.enabled": true,
         "python.linting.ruffEnabled": true,
-        "vitest.enable": true,
-        "vitest.commandLine": "bun run vitest",
-        "vitest.rootConfig": "./client/vitest.config.ts",
+        "jest.autoRun": "off",
+        "jest.rootPath": "client",
         "editor.formatOnSave": true,
         "editor.tabSize": 2,
         "editor.insertSpaces": true,
@@ -59,6 +58,6 @@
     }
   },
   "forwardPorts": [5173, 8000, 6379],
-  "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install",
+  "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install && bunx playwright install",
   "remoteUser": "root"
 }

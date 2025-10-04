@@ -4,10 +4,10 @@
 
 ### Client
 
-- Bun + React + TypeScript + Vite
+- Bun + Expo + React Native + TypeScript
+- Cross-platform: iOS, Android, Web
 - ESLint, Prettier
-- Vitest (unit tests)
-- Playwright (E2E tests)
+- Jest (unit tests)
 
 ### Server
 
@@ -29,7 +29,8 @@ docker-compose up
 
 Services:
 
-- Client: http://localhost:5173
+- Client (Web): http://localhost:8081
+- Client (Mobile): Use Expo Go app and scan QR code from terminal
 - Server: http://localhost:8000
 - Server API docs: http://localhost:8000/docs
 - Redis: localhost:6379
@@ -45,20 +46,51 @@ Run servers from integrated terminal:
 
 ```bash
 cd server && hatch run dev
-cd client && bun run dev
+cd client && bunx expo start --web
 ```
+
+For mobile development, run `bunx expo start` (requires Expo Go app or emulator)
 
 ## Commands
 
 ### Client
 
+**Development:**
 ```bash
-bun run dev          # Start dev server
-bun run build        # Build for production
-bun run preview      # Preview production build
-bun run test         # Run unit tests
-bunx playwright test # Run E2E tests
+bunx expo start              # Start Expo dev server (iOS, Android, Web)
+bunx expo start --web        # Start web only
+bunx expo start --ios        # Start iOS only (macOS required)
+bunx expo start --android    # Start Android only
 ```
+
+**Testing:**
+```bash
+bun run test                 # Run unit tests (Jest)
+bun run test:watch           # Run tests in watch mode
+bun run test:coverage        # Run tests with coverage
+bun run e2e                  # Run E2E tests (Playwright)
+bun run e2e:ui               # Run E2E tests with UI
+```
+
+**Code Quality:**
+```bash
+bun run lint                 # Lint with ESLint (Google rules)
+bun run format               # Format with Prettier
+bun run type-check           # TypeScript type checking
+bun run check                # Run format, lint, type-check, and test
+```
+
+**Build:**
+```bash
+bunx expo export -p web      # Build for web production
+bunx expo export -p ios      # Build for iOS production
+bunx expo export -p android  # Build for Android production
+```
+
+**Mobile Development:**
+- Install Expo Go on your phone (iOS/Android)
+- Scan QR code from terminal
+- Or use iOS Simulator / Android Emulator
 
 ### Server
 

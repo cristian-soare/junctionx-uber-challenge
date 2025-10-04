@@ -1,17 +1,20 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /workspace
 
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     curl \
     git \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+    bash \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev
 
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-RUN pip install hatch
+RUN pip install --no-cache-dir hatch
 
 EXPOSE 5173 8000
 

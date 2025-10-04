@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.11-alpine AS base
 
 WORKDIR /app
 
@@ -8,6 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 FROM base AS builder
+
+RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev
 
 COPY pyproject.toml ./
 COPY app ./app

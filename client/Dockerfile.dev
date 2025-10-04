@@ -2,11 +2,13 @@ FROM oven/bun:1
 
 WORKDIR /app
 
-COPY package.json bun.lockb* ./
+COPY package.json package-lock.json* ./
 RUN bun install
 
 COPY . .
 
-EXPOSE 5173
+EXPOSE 8081 19000 19001 19002
 
-CMD ["bun", "run", "dev", "--host", "0.0.0.0"]
+ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+
+CMD ["bunx", "expo", "start", "--web"]
