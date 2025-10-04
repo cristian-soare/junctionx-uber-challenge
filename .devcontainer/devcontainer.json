@@ -2,7 +2,12 @@
   "name": "JunctionX Uber Challenge",
   "build": {
     "dockerfile": "../Dockerfile.dev",
-    "context": ".."
+    "context": "..",
+    "args": {
+      "USERNAME": "${localEnv:USER}${localEnv:USERNAME}",
+      "USER_UID": "1000",
+      "USER_GID": "1000"
+    }
   },
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
@@ -19,7 +24,7 @@
         "Orta.vscode-jest"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/root/.local/share/hatch/env/virtual/junctionx-uber-server/*/bin/python",
+        "python.defaultInterpreterPath": "/home/${localEnv:USER}${localEnv:USERNAME}/.local/share/hatch/env/virtual/junctionx-uber-server/*/bin/python",
         "python.testing.pytestEnabled": true,
         "python.testing.unittestEnabled": false,
         "python.testing.pytestArgs": [
@@ -57,11 +62,16 @@
       }
     }
   },
+  "containerEnv": {
+    "USER": "${localEnv:USER}${localEnv:USERNAME}",
+    "REACT_NATIVE_PACKAGER_HOSTNAME": "0.0.0.0"
+  },
+  "updateRemoteUserUID": true,
   "forwardPorts": [8000, 8081, 19000, 19001, 19002, 6379],
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/${localEnv:USER}${localEnv:USERNAME}/.ssh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/${localEnv:USER}${localEnv:USERNAME}/.gitconfig,type=bind,consistency=cached"
   ],
   "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install",
-  "remoteUser": "root"
+  "remoteUser": "${localEnv:USER}${localEnv:USERNAME}"
 }
