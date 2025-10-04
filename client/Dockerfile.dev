@@ -1,16 +1,19 @@
-FROM oven/bun:1
+FROM archlinux/archlinux:base-devel
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm curl unzip && \
+    pacman -Scc --noconfirm
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+
+COPY package.json ./
 RUN bun install
 
 COPY . .
 
-EXPOSE 8081 19000 19001 19002
+EXPOSE 19000 19001 19002
 
-ENV EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
-ENV REACT_NATIVE_PACKAGER_HOSTNAME=0.0.0.0
-ENV EXPO_PUBLIC_PACKAGER_HOSTNAME=0.0.0.0
-
-CMD ["bunx", "expo", "start", "--lan"]
+CMD ["bun", "start"]

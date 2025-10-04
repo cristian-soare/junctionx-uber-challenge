@@ -14,7 +14,6 @@ RUN pacman -Syu --noconfirm && \
     libffi \
     openssl \
     openssh \
-    jdk17-openjdk \
     unzip \
     make \
     zlib \
@@ -23,23 +22,10 @@ RUN pacman -Syu --noconfirm && \
     sqlite \
     xz \
     tk \
-    libpulse \
     && pacman -Scc --noconfirm
 
 RUN groupadd -g ${USER_GID} ${USERNAME} && \
     useradd -m -u ${USER_UID} -g ${USERNAME} ${USERNAME}
-
-ENV ANDROID_SDK_ROOT=/opt/android-sdk
-ENV ANDROID_HOME=/opt/android-sdk
-ENV PATH="${PATH}:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator"
-
-RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools && \
-    cd ${ANDROID_SDK_ROOT}/cmdline-tools && \
-    curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
-    unzip cmdline-tools.zip && \
-    mv cmdline-tools latest && \
-    rm cmdline-tools.zip && \
-    chown -R ${USERNAME}:${USERNAME} ${ANDROID_SDK_ROOT}
 
 USER ${USERNAME}
 
@@ -51,9 +37,6 @@ ENV PATH="${PYENV_ROOT}/bin:${PATH}"
 
 # Install Python 3.11 via pyenv
 RUN eval "$(pyenv init -)" && pyenv install 3.11 && pyenv global 3.11
-
-RUN yes | sdkmanager --licenses && \
-    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" "system-images;android-34;google_apis;x86_64"
 
 RUN eval "$(pyenv init -)" && pip install --no-cache-dir --user hatch
 RUN curl -fsSL https://bun.sh/install | bash

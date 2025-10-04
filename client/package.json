@@ -4,8 +4,6 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start --tunnel",
-    "android": "expo start --android",
-    "android:emulator": "avdmanager create avd -n expo_emulator -k 'system-images;android-34;google_apis;x86_64' -d pixel_6 --force && emulator -avd expo_emulator",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",

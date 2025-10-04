@@ -65,9 +65,8 @@
   "containerEnv": {
     "USER": "${localEnv:USER}${localEnv:USERNAME}"
   },
-  "runArgs": ["--privileged", "--device=/dev/kvm"],
   "updateRemoteUserUID": true,
-  "forwardPorts": [8000, 8081, 19000, 19001, 19002, 6379, 5554, 5555],
+  "forwardPorts": [8000, 8081, 19000, 19001, 19002, 6379],
   "mounts": [
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/${localEnv:USER}${localEnv:USERNAME}/.ssh,type=bind,consistency=cached",
     "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/${localEnv:USER}${localEnv:USERNAME}/.gitconfig,type=bind,consistency=cached"
