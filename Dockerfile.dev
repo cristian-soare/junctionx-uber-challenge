@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM archlinux/archlinux:base-devel
 
 ARG USERNAME=user
 ARG USER_UID=1000
@@ -6,25 +6,60 @@ ARG USER_GID=1000
 
 WORKDIR /workspace
 
-RUN apk add --no-cache \
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
     curl \
     git \
     bash \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    openssh
+    libffi \
+    openssl \
+    openssh \
+    jdk17-openjdk \
+    unzip \
+    make \
+    zlib \
+    bzip2 \
+    readline \
+    sqlite \
+    xz \
+    tk \
+    libpulse \
+    && pacman -Scc --noconfirm
 
-RUN addgroup -g ${USER_GID} ${USERNAME} && \
-    adduser -D -u ${USER_UID} -G ${USERNAME} ${USERNAME}
+RUN groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -m -u ${USER_UID} -g ${USERNAME} ${USERNAME}
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="${PATH}:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator"
+
+RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools && \
+    cd ${ANDROID_SDK_ROOT}/cmdline-tools && \
+    curl -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && \
+    unzip cmdline-tools.zip && \
+    mv cmdline-tools latest && \
+    rm cmdline-tools.zip && \
+    chown -R ${USERNAME}:${USERNAME} ${ANDROID_SDK_ROOT}
 
 USER ${USERNAME}
 
-RUN pip install --no-cache-dir --user hatch
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/.bun/bin:${PATH}"
+# Install pyenv
+RUN curl https://pyenv.run | bash
 
-EXPOSE 5173 8000
+ENV PYENV_ROOT="/home/${USERNAME}/.pyenv"
+ENV PATH="${PYENV_ROOT}/bin:${PATH}"
+
+# Install Python 3.11 via pyenv
+RUN eval "$(pyenv init -)" && pyenv install 3.11 && pyenv global 3.11
+
+RUN yes | sdkmanager --licenses && \
+    sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" "system-images;android-34;google_apis;x86_64"
+
+RUN eval "$(pyenv init -)" && pip install --no-cache-dir --user hatch
+RUN curl -fsSL https://bun.sh/install | bash
+
+ENV PATH="/home/${USERNAME}/.local/bin:/home/${USERNAME}/.bun/bin:${PYENV_ROOT}/shims:${PATH}"
+
+EXPOSE 5173 8000 19000 19001 19002
 
 CMD ["/bin/bash"]
