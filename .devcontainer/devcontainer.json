@@ -58,6 +58,10 @@
     }
   },
   "forwardPorts": [8000, 8081, 19000, 19001, 19002, 6379],
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/root/.ssh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+  ],
   "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install",
   "remoteUser": "root"
 }
