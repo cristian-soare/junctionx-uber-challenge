@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN pip install hatch
+
+COPY pyproject.toml ./
+RUN hatch env create
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["hatch", "run", "dev"]

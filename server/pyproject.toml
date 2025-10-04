@@ -1,0 +1,179 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "junctionx-uber-server"
+version = "0.1.0"
+description = "FastAPI server for JunctionX Uber Challenge"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.109.0",
+  "uvicorn[standard]>=0.27.0",
+  "pydantic>=2.5.0",
+  "pydantic-settings>=2.1.0",
+  "sqlalchemy>=2.0.25",
+  "redis>=5.0.1",
+  "transformers>=4.37.0",
+  "torch>=2.1.0",
+  "accelerate>=0.26.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "hatch>=1.14.0",
+  "pytest>=7.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-asyncio>=0.21.0",
+  "httpx>=0.26.0",
+  "ruff>=0.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.hatch.envs.default]
+dependencies = [
+  "pytest>=7.0.0",
+  "pytest-cov>=4.0.0",
+  "pytest-asyncio>=0.21.0",
+  "httpx>=0.26.0",
+  "ruff>=0.1.0",
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+lint = "ruff check . --fix"
+format = "ruff format ."
+check = ["ruff format .", "ruff check . --fix", "pytest tests/"]
+dev = "uvicorn app.main:app --reload --host 0.0.0.0"
+
+[tool.ruff]
+line-length = 100
+indent-width = 2
+target-version = "py311"
+
+extend-exclude = [
+  ".gitignore",
+  "venv",
+  "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "W",   # pycodestyle warnings
+  "C90", # mccabe
+  "I",   # isort
+  "N",   # pep8-naming
+  "D",   # pydocstring
+  "UP",  # pyupgrade
+  "ANN", # flake8-annotations (type checking)
+  "S",   # flake8-bandit
+  "B",   # flake8-bugbear
+  "A",   # flake8-builtins
+  "COM", # flake8-commas
+  "C4",  # flake8-comprehensions
+  "DTZ", # flake8-datetimez
+  "T10", # flake8-debugger
+  "DJ",  # flake8-django
+  "EM",  # flake8-errmsg
+  "EXE", # flake8-executable
+  "ISC", # flake8-implicit-str-concat
+  "ICN", # flake8-import-conventions
+  "G",   # flake8-logging-format
+  "INP", # flake8-no-pep420
+  "PIE", # flake8-pie
+  "PYI", # flake8-pyi
+  "PT",  # flake8-pytest-style
+  "Q",   # flake8-quotes
+  "RSE", # flake8-raise
+  "RET", # flake8-return
+  "SLF", # flake8-self
+  "SIM", # flake8-simplify
+  "TID", # flake8-tidy-imports
+  "TCH", # flake8-type-checking
+  "ARG", # flake8-unused-arguments
+  "PTH", # flake8-use-pathlib
+  "ERA", # eradicate
+  "PD",  # pandas-vet
+  "PGH", # pygrep-hooks
+  "PL",  # pylint
+  "TRY", # tryceratops
+  "NPY", # NumPy-specific rules
+  "RUF", # Ruff-specific rules
+]
+
+ignore = [
+  "PLR",    # Design related pylint checks
+  "ANN101", # Missing type annotation for self
+  "ANN102", # Missing type annotation for cls
+  "D203",   # 1 blank line required before class docstring
+  "D213",   # Multi-line docstring summary should start at the second line
+  "ISC001", # Implicit string concatenation
+  "COM812", # Missing trailing comma in Python 3.6+
+  "S311",   # Standard pseudo-random generators are not suitable for security/cryptographic purposes
+]
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = ["classmethod"]
+ignore-names = ["setUp", "tearDown", "setUpClass", "tearDownClass"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "D104"]
+"*_test.py" = ["D", "ANN", "S101", "ARG001", "ARG002", "SLF001"]
+"tests/*" = ["D", "ANN", "S101", "ARG001", "ARG002", "SLF001"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+force-single-line = false
+lines-between-types = 1
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --cov=app --cov-report=term-missing --cov-report=xml"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+norecursedirs = ["__init__.py"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+  "tests/*",
+  "*/__init__.py",
+  "*/test_*.py",
+  "*/*_test.py"
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "if self.debug:",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+  "pass",
+  "raise ImportError"
+]

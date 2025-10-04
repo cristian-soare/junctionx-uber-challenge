@@ -1,0 +1,64 @@
+{
+  "name": "JunctionX Uber Challenge",
+  "build": {
+    "dockerfile": "../Dockerfile.dev",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "oven.bun-vscode",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "vitest.explorer",
+        "ms-playwright.playwright"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/root/.local/share/hatch/env/virtual/junctionx-uber-server/*/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.unittestEnabled": false,
+        "python.testing.pytestArgs": [
+          "server/tests"
+        ],
+        "python.linting.enabled": true,
+        "python.linting.ruffEnabled": true,
+        "vitest.enable": true,
+        "vitest.commandLine": "bun run vitest",
+        "vitest.rootConfig": "./client/vitest.config.ts",
+        "editor.formatOnSave": true,
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.tabSize": 2
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.tabSize": 2
+        },
+        "[yaml]": {
+          "editor.tabSize": 2
+        }
+      }
+    }
+  },
+  "forwardPorts": [5173, 8000, 6379],
+  "postCreateCommand": "cd /workspace/server && hatch env create && cd /workspace/client && bun install",
+  "remoteUser": "root"
+}

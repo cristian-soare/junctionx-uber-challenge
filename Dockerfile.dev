@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /workspace
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
+
+RUN pip install hatch
+
+EXPOSE 5173 8000
+
+CMD ["/bin/bash"]
