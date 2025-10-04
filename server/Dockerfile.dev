@@ -9,7 +9,7 @@ RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm python python-pip && \
     pacman -Scc --noconfirm
 
-RUN pip install --no-cache-dir hatch
+RUN pacman -S --noconfirm python-hatch
 
 COPY pyproject.toml ./
 RUN hatch env create
