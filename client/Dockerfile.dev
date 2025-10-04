@@ -9,7 +9,7 @@ RUN pacman -Syu --noconfirm && \
 RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:${PATH}"
 
-COPY package.json ./
+COPY package.json bun.lockb* ./
 RUN bun install
 
 COPY . .

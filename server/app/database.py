@@ -1,20 +1,21 @@
 """Database connections and helpers for Redis and SQLite."""
 
 import json
+
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import redis.asyncio as redis
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
   """Base class for SQLAlchemy models."""
-
-  pass
 
 
 class DatabaseManager:
@@ -26,7 +27,9 @@ class DatabaseManager:
     db_path.parent.mkdir(exist_ok=True)
     self.sqlite_url = f"sqlite+aiosqlite:///{db_path}"
     self.engine = create_async_engine(self.sqlite_url, echo=False)
-    self.async_session = async_sessionmaker(self.engine, class_=AsyncSession, expire_on_commit=False)
+    self.async_session = async_sessionmaker(
+      self.engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     self.redis_client: redis.Redis | None = None
 
@@ -49,7 +52,7 @@ class DatabaseManager:
       await conn.run_sync(Base.metadata.create_all)
 
   @asynccontextmanager
-  async def get_session(self):
+  async def get_session(self) -> AsyncIterator[AsyncSession]:
     """Get SQLite async session."""
     async with self.async_session() as session:
       yield session
@@ -161,12 +164,14 @@ class DatabaseManager:
     if not self.redis_client:
       return
 
-    data = json.dumps({
-      "request_id": request_id,
-      "rider_id": rider_id,
-      "pickup_lat": pickup_lat,
-      "pickup_lon": pickup_lon,
-    })
+    data = json.dumps(
+      {
+        "request_id": request_id,
+        "rider_id": rider_id,
+        "pickup_lat": pickup_lat,
+        "pickup_lon": pickup_lon,
+      }
+    )
     await self.redis_client.zadd("trip:requests:recent", {data: float(timestamp)})
 
     cutoff = float(timestamp) - 3600
@@ -192,14 +197,73 @@ class DatabaseManager:
       str(count),
     )
 
-  async def get_active_drivers_in_hex(self, city_id: int, hexagon_id: str) -> int | None:
-    """Get cached active driver count."""
+  async def set_driver_selections(
+    self,
+    driver_id: str,
+    selected_time: int | None = None,
+    remaining_hours: int | None = None,
+    selected_zone: str | None = None,
+  ) -> None:
+    """Store driver's time and zone selections in Redis."""
+    if not self.redis_client:
+      return
+
+    key = f"driver:selections:{driver_id}"
+    data = {
+      "selected_time": selected_time,
+      "remaining_hours": remaining_hours,
+      "selected_zone": selected_zone,
+    }
+    await self.redis_client.setex(
+      key,
+      timedelta(hours=24),  # Selections expire after 24 hours
+      json.dumps(data),
+    )
+
+  async def get_driver_selections(self, driver_id: str) -> dict[str, Any] | None:
+    """Get driver's time and zone selections from Redis."""
     if not self.redis_client:
       return None
 
-    key = f"drivers:active:city:{city_id}:hex:{hexagon_id}"
+    key = f"driver:selections:{driver_id}"
     data = await self.redis_client.get(key)
-    return int(data) if data else None
+    return json.loads(data) if data else None
+
+  async def publish_optimal_time_notification(
+    self,
+    driver_id: str,
+    optimal_time: int,
+    score: float,
+    remaining_hours: int,
+  ) -> None:
+    """Publish optimal time notification to Redis pub/sub channel.
+
+    Clients can subscribe to "driver:notifications:{driver_id}" to receive
+    optimal time recommendations.
+
+    Args:
+        driver_id: Driver identifier.
+        optimal_time: Optimal start hour (0-23).
+        score: Score for optimal time.
+        remaining_hours: Continuous hours from optimal time.
+
+    """
+    if not self.redis_client:
+      return
+
+    channel = f"driver:notifications:{driver_id}"
+    message = json.dumps(
+      {
+        "type": "optimal_time",
+        "driver_id": driver_id,
+        "optimal_time": optimal_time,
+        "score": score,
+        "remaining_hours": remaining_hours,
+        "timestamp": datetime.now(UTC).isoformat(),
+      }
+    )
+
+    await self.redis_client.publish(channel, message)
 
 
 # Global database manager instance

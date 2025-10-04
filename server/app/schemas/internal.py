@@ -5,12 +5,43 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-class Location(BaseModel):
-  """Geographic location with lat/lon coordinates."""
+class Coordinate(BaseModel):
+  """Geographic coordinate with latitude and longitude."""
 
   lat: float = Field(..., ge=-90, le=90, description="Latitude")
   lon: float = Field(..., ge=-180, le=180, description="Longitude")
+
+
+class Hexagon(BaseModel):
+  """Hexagon with ID and coordinate."""
+
+  hex_id: str = Field(..., description="H3 hexagon identifier (9 characters)")
+  coordinate: Coordinate = Field(..., description="Center coordinate of hexagon")
+
+
+class Zone(BaseModel):
+  """Zone containing multiple hexagons."""
+
+  zone_id: str = Field(..., description="Zone identifier")
+  hexagons: list[Hexagon] = Field(..., description="List of hexagons in zone")
+  center: Coordinate = Field(..., description="Center coordinate of zone")
+
+
+class Location(BaseModel):
+  """Geographic location with coordinate and city."""
+
+  coordinate: Coordinate = Field(..., description="Geographic coordinate")
   city_id: int = Field(..., description="City identifier")
+
+  @property
+  def lat(self) -> float:
+    """Get latitude from coordinate."""
+    return self.coordinate.lat
+
+  @property
+  def lon(self) -> float:
+    """Get longitude from coordinate."""
+    return self.coordinate.lon
 
 
 class DriverLocation(BaseModel):
@@ -32,15 +63,6 @@ class TripRequest(BaseModel):
   timestamp: datetime = Field(..., description="Request timestamp")
 
 
-class DriverStateRecommendation(BaseModel):
-  """Recommendation for driver state change."""
-
-  should_change_state: bool = Field(..., description="Whether driver should change state")
-  recommended_state: str | None = Field(None, description="Recommended state to transition to")
-  confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
-  reasoning: dict[str, float] = Field(..., description="Factor scores contributing to decision")
-
-
 class ZoneRecommendation(BaseModel):
   """Recommendation for optimal hexagon zone."""
 
@@ -49,3 +71,5 @@ class ZoneRecommendation(BaseModel):
   predicted_earnings_per_hour: float = Field(..., ge=0.0, description="Predicted EPH (EUR/hr)")
   distance_km: float = Field(..., ge=0.0, description="Distance from current location (km)")
   confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0-1)")
+  lat: float = Field(..., ge=-90, le=90, description="Zone center latitude")
+  lon: float = Field(..., ge=-180, le=180, description="Zone center longitude")

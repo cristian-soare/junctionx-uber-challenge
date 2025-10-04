@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Float, Integer, String, Text
+from sqlalchemy import Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -78,3 +78,16 @@ class SurgeHistory(Base):
   hexagon_id: Mapped[str] = mapped_column(String(20), index=True, nullable=False)
   surge_multiplier: Mapped[float] = mapped_column(Float, nullable=False)
   timestamp: Mapped[datetime] = mapped_column(nullable=False, index=True)
+
+
+class DriverPreferences(Base):
+  """Driver working hours preferences."""
+
+  __tablename__ = "driver_preferences"
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+  driver_id: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+  start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+  end_hour: Mapped[int] = mapped_column(Integer, nullable=False)
+  city_id: Mapped[int] = mapped_column(Integer, nullable=False)
+  updated_at: Mapped[datetime] = mapped_column(nullable=False, index=True)

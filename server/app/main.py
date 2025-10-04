@@ -1,5 +1,6 @@
 """FastAPI application for JunctionX Uber Challenge."""
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,7 +11,7 @@ from app.endpoints import router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
   """Manage application lifecycle - startup and shutdown."""
   await db_manager.init_redis()
   await db_manager.init_sqlite()

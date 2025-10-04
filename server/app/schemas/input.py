@@ -1,16 +1,32 @@
 """API request schemas (input)."""
 
-from typing import Any
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 
-class Location(BaseModel):
-  """Geographic location with lat/lon coordinates."""
+class Coordinate(BaseModel):
+  """Geographic coordinate."""
 
   lat: float = Field(..., ge=-90, le=90, description="Latitude")
   lon: float = Field(..., ge=-180, le=180, description="Longitude")
+
+
+class Location(BaseModel):
+  """Geographic location with coordinate and city."""
+
+  coordinate: Coordinate = Field(..., description="Geographic coordinate")
   city_id: int = Field(..., description="City identifier")
+
+  @property
+  def lat(self) -> float:
+    """Get latitude from coordinate."""
+    return self.coordinate.lat
+
+  @property
+  def lon(self) -> float:
+    """Get longitude from coordinate."""
+    return self.coordinate.lon
 
 
 class DriverLocationRequest(BaseModel):
@@ -19,14 +35,7 @@ class DriverLocationRequest(BaseModel):
   driver_id: str = Field(..., description="Driver identifier")
   location: Location = Field(..., description="Current location")
   status: str = Field(..., description="Driver status: online/offline/engaged")
-
-
-class DriverRecommendationRequest(BaseModel):
-  """Request for driver recommendation."""
-
-  driver_id: str = Field(..., description="Driver identifier")
-  current_state: str = Field(..., description="Current state: offline/idle/engaged")
-  current_location: Location = Field(..., description="Current location")
+  timestamp: datetime = Field(..., description="Timestamp when location was captured")
 
 
 class TripRequestInput(BaseModel):
@@ -35,6 +44,7 @@ class TripRequestInput(BaseModel):
   rider_id: str = Field(..., description="Rider identifier")
   pickup: Location = Field(..., description="Pickup location")
   drop: Location | None = Field(None, description="Drop-off location")
+  timestamp: datetime = Field(..., description="Timestamp when trip was requested")
 
 
 class WeatherUpdateRequest(BaseModel):
@@ -43,6 +53,7 @@ class WeatherUpdateRequest(BaseModel):
   city_id: int = Field(..., description="City identifier")
   weather: str = Field(..., description="Weather condition: clear/rain/snow")
   temperature: float | None = Field(None, description="Temperature in Celsius")
+  timestamp: datetime = Field(..., description="Timestamp of weather observation")
 
 
 class SurgeUpdateRequest(BaseModel):
@@ -51,6 +62,7 @@ class SurgeUpdateRequest(BaseModel):
   city_id: int = Field(..., description="City identifier")
   hexagon_id: str = Field(..., description="Hexagon zone identifier")
   surge_multiplier: float = Field(..., ge=1.0, description="Surge multiplier")
+  timestamp: datetime = Field(..., description="Timestamp of surge calculation")
 
 
 class CompletedTripRequest(BaseModel):
@@ -66,3 +78,18 @@ class CompletedTripRequest(BaseModel):
   earnings: float = Field(..., ge=0, description="Earnings in EUR")
   tips: float = Field(default=0.0, ge=0, description="Tips in EUR")
   surge_multiplier: float = Field(default=1.0, ge=1.0, description="Surge multiplier")
+  timestamp: datetime = Field(..., description="Timestamp when trip was completed")
+
+
+class WorkingHoursRequest(BaseModel):
+  """Driver working hours preferences."""
+
+  start_hour: int = Field(..., ge=0, le=23, description="Start hour (0-23)")
+  end_hour: int = Field(..., ge=0, le=23, description="End hour (0-23)")
+  city_id: int = Field(..., description="City identifier")
+
+
+class TimeSelectionRequest(BaseModel):
+  """Driver time selection."""
+
+  time: int = Field(..., ge=0, le=23, description="Selected hour (0-23)")

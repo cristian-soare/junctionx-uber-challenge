@@ -7,10 +7,19 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from app.schemas.input import (
   CompletedTripRequest,
   DriverLocationRequest,
-  DriverRecommendationRequest,
   SurgeUpdateRequest,
+  TimeSelectionRequest,
   TripRequestInput,
   WeatherUpdateRequest,
+  WorkingHoursRequest,
+)
+from app.schemas.output import (
+  BestZoneResponse,
+  DriverSelectionsResponse,
+  OptimalTimeResponse,
+  StartDrivingResponse,
+  TimeScoresResponse,
+  ZoneScoresResponse,
 )
 from app.service import DataService
 
@@ -27,8 +36,7 @@ data_service = DataService()
   tags=["drivers"],
 )
 async def update_driver_location(request: DriverLocationRequest) -> dict[str, Any]:
-  """
-  Update driver location in real-time.
+  """Update driver location in real-time.
 
   Stores driver's current location, status, and timestamp in:
   - Redis: For fast real-time queries (1h TTL)
@@ -42,65 +50,20 @@ async def update_driver_location(request: DriverLocationRequest) -> dict[str, An
 
   Raises:
     HTTPException: 500 if storage fails
+
   """
   try:
     result = await data_service.store_driver_location(
       request.driver_id,
       request.location,
       request.status,
+      request.timestamp,
     )
     return {"status": "success", "data": result}
   except Exception as e:
     raise HTTPException(
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
       detail=f"Failed to store driver location: {e!s}",
-    ) from e
-
-
-@router.post(
-  "/drivers/recommendation",
-  status_code=status.HTTP_200_OK,
-  summary="Get driver recommendation",
-  description="ML-based recommendation for driver state change and optimal zone",
-  response_description="State change recommendation and optimal hexagon zone",
-  tags=["drivers", "ml-inference"],
-)
-async def get_driver_recommendation(request: DriverRecommendationRequest) -> dict[str, Any]:
-  """
-  Get ML-based recommendation for driver optimization.
-
-  Uses ML inference to determine:
-  1. Should driver change state (offline → idle, idle → online, etc.)
-  2. Which hexagon zone to move to for optimal earnings
-
-  Input features considered:
-  - Current driver status and location
-  - Weather conditions
-  - Surge pricing in area
-  - Time since last state change
-  - Historical ride patterns and earnings
-  - Current demand heatmap
-
-  Args:
-    request: Driver ID, current state, and location
-
-  Returns:
-    Success response with state_recommendation and zone_recommendation
-
-  Raises:
-    HTTPException: 500 if inference fails
-  """
-  try:
-    result = await data_service.get_driver_recommendation(
-      request.driver_id,
-      request.current_state,
-      request.current_location,
-    )
-    return {"status": "success", "data": result}
-  except Exception as e:
-    raise HTTPException(
-      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-      detail=f"Failed to get driver recommendation: {e!s}",
     ) from e
 
 
@@ -113,8 +76,7 @@ async def get_driver_recommendation(request: DriverRecommendationRequest) -> dic
   tags=["trips"],
 )
 async def create_trip_request(request: TripRequestInput) -> dict[str, Any]:
-  """
-  Store trip request for demand analysis.
+  """Store trip request for demand analysis.
 
   Stores in:
   - Redis: Recent requests (last hour) for real-time demand tracking
@@ -128,12 +90,14 @@ async def create_trip_request(request: TripRequestInput) -> dict[str, Any]:
 
   Raises:
     HTTPException: 500 if storage fails
+
   """
   try:
     result = await data_service.store_trip_request(
       request.rider_id,
       request.pickup,
       request.drop,
+      request.timestamp,
     )
     return {"status": "success", "data": result}
   except Exception as e:
@@ -152,8 +116,7 @@ async def create_trip_request(request: TripRequestInput) -> dict[str, Any]:
   tags=["context"],
 )
 async def update_weather(request: WeatherUpdateRequest) -> dict[str, Any]:
-  """
-  Update weather conditions for a city.
+  """Update weather conditions for a city.
 
   Stores in:
   - Redis: Current weather (30min TTL) for real-time ML inference
@@ -167,12 +130,14 @@ async def update_weather(request: WeatherUpdateRequest) -> dict[str, Any]:
 
   Raises:
     HTTPException: 500 if storage fails
+
   """
   try:
     result = await data_service.store_weather_update(
       request.city_id,
       request.weather,
       request.temperature,
+      request.timestamp,
     )
     return {"status": "success", "data": result}
   except Exception as e:
@@ -191,8 +156,7 @@ async def update_weather(request: WeatherUpdateRequest) -> dict[str, Any]:
   tags=["context"],
 )
 async def update_surge(request: SurgeUpdateRequest) -> dict[str, Any]:
-  """
-  Update surge pricing for a zone.
+  """Update surge pricing for a zone.
 
   Stores in:
   - Redis: Current surge (5min TTL) for real-time pricing decisions
@@ -206,12 +170,14 @@ async def update_surge(request: SurgeUpdateRequest) -> dict[str, Any]:
 
   Raises:
     HTTPException: 500 if storage fails
+
   """
   try:
     result = await data_service.store_surge_update(
       request.city_id,
       request.hexagon_id,
       request.surge_multiplier,
+      request.timestamp,
     )
     return {"status": "success", "data": result}
   except Exception as e:
@@ -230,8 +196,7 @@ async def update_surge(request: SurgeUpdateRequest) -> dict[str, Any]:
   tags=["trips"],
 )
 async def store_completed_trip(request: CompletedTripRequest) -> dict[str, Any]:
-  """
-  Store completed trip for historical analysis.
+  """Store completed trip for historical analysis.
 
   Stores in SQLite for:
   - Driver performance tracking per zone
@@ -246,6 +211,7 @@ async def store_completed_trip(request: CompletedTripRequest) -> dict[str, Any]:
 
   Raises:
     HTTPException: 500 if storage fails
+
   """
   try:
     result = await data_service.store_completed_trip(request)
@@ -255,42 +221,6 @@ async def store_completed_trip(request: CompletedTripRequest) -> dict[str, Any]:
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
       detail=f"Failed to store completed trip: {e!s}",
     ) from e
-
-
-@router.get(
-  "/drivers/active/{city_id}",
-  status_code=status.HTTP_200_OK,
-  summary="Get active drivers",
-  description="Retrieve all active drivers in a city from Redis",
-  response_description="List of active driver locations",
-  tags=["drivers"],
-)
-async def get_active_drivers(
-  city_id: int = Path(..., description="City identifier", ge=1)
-) -> dict[str, Any]:
-  """
-  Get all active drivers in a city.
-
-  Queries Redis for drivers with non-expired location data.
-
-  Args:
-    city_id: City identifier
-
-  Returns:
-    Success response with list of active driver locations
-
-  Raises:
-    HTTPException: 500 if query fails
-  """
-  try:
-    drivers = await data_service.get_active_drivers(city_id)
-    return {"status": "success", "data": drivers}
-  except Exception as e:
-    raise HTTPException(
-      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-      detail=f"Failed to get active drivers: {e!s}",
-    ) from e
-
 
 @router.get(
   "/drivers/{driver_id}/state-history",
@@ -304,8 +234,7 @@ async def get_driver_state_history(
   driver_id: str,
   hours: int = Query(24, description="Hours to look back", ge=1, le=168),
 ) -> dict[str, Any]:
-  """
-  Get driver's state change history.
+  """Get driver's state change history.
 
   Queries SQLite for historical state transitions.
   Used to calculate time_in_state for ML features.
@@ -319,6 +248,7 @@ async def get_driver_state_history(
 
   Raises:
     HTTPException: 500 if query fails
+
   """
   try:
     history = await data_service.get_driver_state_history(driver_id, hours)
@@ -339,10 +269,9 @@ async def get_driver_state_history(
   tags=["trips"],
 )
 async def get_recent_requests(
-  limit: int = Query(100, description="Maximum number of requests", ge=1, le=1000)
+  limit: int = Query(100, description="Maximum number of requests", ge=1, le=1000),
 ) -> dict[str, Any]:
-  """
-  Get recent trip requests.
+  """Get recent trip requests.
 
   Queries Redis sorted set for requests from the last hour.
   Used for real-time demand analysis.
@@ -355,6 +284,7 @@ async def get_recent_requests(
 
   Raises:
     HTTPException: 500 if query fails
+
   """
   try:
     requests = await data_service.get_recent_requests(limit)
@@ -363,4 +293,326 @@ async def get_recent_requests(
     raise HTTPException(
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
       detail=f"Failed to get recent requests: {e!s}",
+    ) from e
+
+
+@router.post(
+  "/drivers/{driver_id}/preferences",
+  status_code=status.HTTP_201_CREATED,
+  summary="Set driver working hours",
+  description="Store driver's preferred working hours",
+  response_description="Working hours confirmation",
+  tags=["drivers", "preferences"],
+)
+async def set_working_hours(driver_id: str, request: WorkingHoursRequest) -> dict[str, Any]:
+  """Set driver's working hours preferences.
+
+  Args:
+    driver_id: Driver identifier
+    request: Working hours (start_hour, end_hour, city_id)
+
+  Returns:
+    Success response with stored preferences
+
+  Raises:
+    HTTPException: 500 if storage fails
+
+  """
+  try:
+    result = await data_service.store_working_hours(
+      driver_id=driver_id,
+      start_hour=request.start_hour,
+      end_hour=request.end_hour,
+      city_id=request.city_id,
+    )
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to store working hours: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/recommendations/optimal-time",
+  status_code=status.HTTP_200_OK,
+  summary="Get optimal start time",
+  description="Get best start time from driver's working hours range",
+  response_description="Optimal time with score and remaining hours",
+  response_model=OptimalTimeResponse,
+  tags=["drivers", "recommendations"],
+)
+async def get_optimal_time(driver_id: str) -> OptimalTimeResponse:
+  """Get optimal start time for driver.
+
+  Computes scores for all possible start times within working hours
+  and returns the time with highest score.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    Optimal time with score and remaining hours
+
+  Raises:
+    HTTPException: 400 if no preferences set, 500 if computation fails
+
+  """
+  try:
+    result = await data_service.get_optimal_time(driver_id)
+    return OptimalTimeResponse(**result)
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get optimal time: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/recommendations/time-scores",
+  status_code=status.HTTP_200_OK,
+  summary="Get all time scores",
+  description="Get scores for all possible start times in working hours range",
+  response_description="List of time scores",
+  response_model=TimeScoresResponse,
+  tags=["drivers", "recommendations"],
+)
+async def get_time_scores(driver_id: str) -> TimeScoresResponse:
+  """Get scores for all possible start times.
+
+  Returns score for each hour in driver's working hours range,
+  with corresponding remaining hours.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    List of time scores sorted by time
+
+  Raises:
+    HTTPException: 400 if no preferences set, 500 if computation fails
+
+  """
+  try:
+    scores = await data_service.get_all_time_scores(driver_id)
+    return TimeScoresResponse(scores=scores)
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get time scores: {e!s}",
+    ) from e
+
+
+@router.post(
+  "/drivers/{driver_id}/selections/time",
+  status_code=status.HTTP_201_CREATED,
+  summary="Select start time",
+  description="Select a start time and store it with calculated remaining hours",
+  response_description="Selection confirmation with remaining hours",
+  tags=["drivers", "selections"],
+)
+async def select_time(driver_id: str, request: TimeSelectionRequest) -> dict[str, Any]:
+  """Select a start time.
+
+  Validates time is within working hours and stores it with
+  calculated remaining hours in Redis.
+
+  Args:
+    driver_id: Driver identifier
+    request: Selected time
+
+  Returns:
+    Success response with selected time and remaining hours
+
+  Raises:
+    HTTPException: 400 if invalid time or no preferences set, 500 if storage fails
+
+  """
+  try:
+    result = await data_service.select_time(driver_id, request.time)
+    return {"status": "success", "data": result}
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to select time: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/recommendations/zone-scores",
+  status_code=status.HTTP_200_OK,
+  summary="Get zone scores for selected time",
+  description="Get all zones ranked by score for driver's selected time",
+  response_description="List of zones ranked by score (descending)",
+  response_model=ZoneScoresResponse,
+  tags=["drivers", "recommendations"],
+)
+async def get_zone_scores(driver_id: str) -> ZoneScoresResponse:
+  """Get ranked zones for selected time.
+
+  Returns all zones sorted by score (descending) for the
+  driver's previously selected time.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    List of zones with scores and coordinates
+
+  Raises:
+    HTTPException: 400 if no time selected, 500 if computation fails
+
+  """
+  try:
+    zones = await data_service.get_zone_scores(driver_id)
+    return ZoneScoresResponse(zones=zones)
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get zone scores: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/recommendations/best-zone",
+  status_code=status.HTTP_200_OK,
+  summary="Get best zone",
+  description="Get best zone for current time or selected time",
+  response_description="Best zone with score and coordinates",
+  response_model=BestZoneResponse,
+  tags=["drivers", "recommendations"],
+)
+async def get_best_zone(
+  driver_id: str,
+  current_time: int | None = Query(
+    None, description="Current hour (0-23), or None for selected time", ge=0, le=23
+  ),
+) -> BestZoneResponse:
+  """Get best zone for time.
+
+  If current_time provided, calculates remaining hours and returns
+  best zone for that time. Otherwise uses driver's selected time.
+
+  Args:
+    driver_id: Driver identifier
+    current_time: Optional current hour (0-23)
+
+  Returns:
+    Best zone with score and coordinates
+
+  Raises:
+    HTTPException: 400 if invalid time or no selection, 500 if computation fails
+
+  """
+  try:
+    zone = await data_service.get_best_zone(driver_id, current_time)
+    return BestZoneResponse(**zone)
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get best zone: {e!s}",
+    ) from e
+
+
+@router.get(
+  "/drivers/{driver_id}/selections",
+  status_code=status.HTTP_200_OK,
+  summary="Get driver selections",
+  description="Get driver's current time and zone selections",
+  response_description="Driver selections",
+  response_model=DriverSelectionsResponse,
+  tags=["drivers", "selections"],
+)
+async def get_selections(driver_id: str) -> DriverSelectionsResponse:
+  """Get driver's current selections.
+
+  Returns driver's selected time, remaining hours, and selected zone
+  from Redis cache.
+
+  Args:
+    driver_id: Driver identifier
+
+  Returns:
+    Driver selections (may be null if not set)
+
+  Raises:
+    HTTPException: 500 if query fails
+
+  """
+  try:
+    selections = await data_service.get_driver_selections(driver_id)
+    return DriverSelectionsResponse(**selections)
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to get selections: {e!s}",
+    ) from e
+
+
+@router.post(
+  "/drivers/{driver_id}/start-driving",
+  status_code=status.HTTP_200_OK,
+  summary="Start driving",
+  description="Get optimal zone center when driver starts driving",
+  response_description="Optimal zone with center coordinate",
+  response_model=StartDrivingResponse,
+  tags=["drivers", "actions"],
+)
+async def start_driving(
+  driver_id: str,
+  current_time: int = Query(..., description="Current hour (0-23)", ge=0, le=23),
+) -> StartDrivingResponse:
+  """Get optimal zone center when driver starts driving.
+
+  Calculates remaining hours from working hours preferences,
+  finds best zone for current time, and returns zone center coordinate.
+
+  Args:
+    driver_id: Driver identifier
+    current_time: Current hour (0-23)
+
+  Returns:
+    Optimal zone with center coordinate and score
+
+  Raises:
+    HTTPException: 400 if no preferences or invalid time, 500 if computation fails
+
+  """
+  try:
+    result = await data_service.start_driving(driver_id, current_time)
+    return StartDrivingResponse(**result)
+  except ValueError as e:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=str(e),
+    ) from e
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to start driving: {e!s}",
     ) from e

@@ -1,21 +1,29 @@
 """Service layer for real-time operational data and inference."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 
 from app.compute import ComputeService
 from app.database import db_manager
+from app.exceptions import (
+  CurrentTimeOutsideWorkingHoursError,
+  DriverPreferencesNotSetError,
+  TimeNotSelectedAndNoCurrentTimeError,
+  TimeNotSelectedError,
+  TimeOutsideWorkingHoursError,
+)
 from app.models import (
   CompletedTrip,
+  DriverPreferences,
   DriverStateHistory,
   SurgeHistory,
   TripRequestHistory,
   WeatherHistory,
 )
 from app.schemas.input import CompletedTripRequest
-from app.schemas.internal import DriverLocation, Location, TripRequest
+from app.schemas.internal import Location
 
 
 class DataService:
@@ -30,28 +38,20 @@ class DataService:
     driver_id: str,
     location: Location,
     status: str,
+    timestamp: datetime,
   ) -> dict[str, Any]:
-    """
-    Store real-time driver location in database.
+    """Store real-time driver location in database.
 
     Args:
         driver_id: Driver identifier.
         location: Geographic location with city.
         status: Driver status (online/offline/engaged).
+        timestamp: Timestamp when location was captured.
 
     Returns:
         Confirmation with stored data.
+
     """
-    timestamp = datetime.now()
-
-    # Create DriverLocation model
-    driver_location = DriverLocation(
-      driver_id=driver_id,
-      location=location,
-      status=status,
-      timestamp=timestamp,
-    )
-
     # Redis: Store current location for real-time queries
     await db_manager.set_driver_location(
       driver_id=driver_id,
@@ -82,64 +82,26 @@ class DataService:
       "timestamp": timestamp.isoformat(),
     }
 
-  async def get_driver_recommendation(
-    self,
-    driver_id: str,
-    current_state: str,
-    current_location: Location,
-  ) -> dict[str, Any]:
-    """
-    Get ML-based recommendation for driver.
-
-    Determines:
-    1. Should driver change state (offline -> idle, etc.)
-    2. Which hexagon zone to move to for optimal earnings
-
-    Args:
-        driver_id: Driver identifier.
-        current_state: Current driver state (offline/idle/engaged).
-        current_location: Current geographic location with city.
-
-    Returns:
-        Recommendation with state change and optimal zone.
-    """
-    # Get recommendation from compute service
-    recommendation = await self.compute_service.get_driver_recommendation(
-      driver_id=driver_id,
-      current_state=current_state,
-      current_location=current_location,
-    )
-
-    return recommendation
-
   async def store_trip_request(
     self,
     rider_id: str,
     pickup: Location,
-    drop: Location | None = None,
+    drop: Location | None,
+    timestamp: datetime,
   ) -> dict[str, Any]:
-    """
-    Store trip request in database.
+    """Store trip request in database.
 
     Args:
         rider_id: Rider identifier.
         pickup: Pickup location.
         drop: Drop-off location (optional).
+        timestamp: Timestamp when trip was requested.
 
     Returns:
         Trip request data.
-    """
-    timestamp = datetime.now()
-    request_id = f"req_{int(timestamp.timestamp() * 1000)}"
 
-    # Create TripRequest model
-    trip_request = TripRequest(
-      request_id=request_id,
-      rider_id=rider_id,
-      pickup=pickup,
-      drop=drop,
-      timestamp=timestamp,
-    )
+    """
+    request_id = f"req_{int(timestamp.timestamp() * 1000)}"
 
     # Redis: Store for real-time demand tracking (last hour)
     await db_manager.add_trip_request(
@@ -176,21 +138,21 @@ class DataService:
     self,
     city_id: int,
     weather: str,
-    temperature: float | None = None,
+    temperature: float | None,
+    timestamp: datetime,
   ) -> dict[str, Any]:
-    """
-    Store weather update for a city.
+    """Store weather update for a city.
 
     Args:
         city_id: City identifier.
         weather: Weather condition (clear/rain/snow).
         temperature: Temperature in Celsius (optional).
+        timestamp: Timestamp of weather observation.
 
     Returns:
         Confirmation with stored data.
-    """
-    timestamp = datetime.now()
 
+    """
     # Redis: Store current weather for real-time access
     await db_manager.set_weather(
       city_id=city_id,
@@ -221,20 +183,20 @@ class DataService:
     city_id: int,
     hexagon_id: str,
     surge_multiplier: float,
+    timestamp: datetime,
   ) -> dict[str, Any]:
-    """
-    Store surge pricing update for a zone.
+    """Store surge pricing update for a zone.
 
     Args:
         city_id: City identifier.
         hexagon_id: Hexagon zone identifier.
         surge_multiplier: Current surge multiplier.
+        timestamp: Timestamp of surge calculation.
 
     Returns:
         Confirmation with stored data.
-    """
-    timestamp = datetime.now()
 
+    """
     # Redis: Store current surge for fast access (expires in 5 min)
     await db_manager.set_surge(
       city_id=city_id,
@@ -264,16 +226,16 @@ class DataService:
     self,
     trip_request: CompletedTripRequest,
   ) -> dict[str, Any]:
-    """
-    Store completed trip for historical analysis.
+    """Store completed trip for historical analysis.
 
     Args:
         trip_request: Completed trip request data.
 
     Returns:
         Confirmation with stored data.
+
     """
-    timestamp = datetime.now()
+    timestamp = trip_request.timestamp
 
     # SQLite: Store completed trip for driver performance analysis
     async with db_manager.get_session() as session:
@@ -299,29 +261,15 @@ class DataService:
       "timestamp": timestamp.isoformat(),
     }
 
-  async def get_active_drivers(self, city_id: int) -> list[dict[str, Any]]:
-    """
-    Get all active drivers in a city.
-
-    Args:
-        city_id: City identifier.
-
-    Returns:
-        List of active driver locations.
-    """
-    # TODO: Query Redis for all active driver locations by city
-    # Use pattern matching on driver:location:* keys
-    return []
-
   async def get_recent_requests(self, limit: int = 100) -> list[dict[str, Any]]:
-    """
-    Get recent trip requests.
+    """Get recent trip requests.
 
     Args:
         limit: Maximum number of requests to return.
 
     Returns:
         List of recent trip requests.
+
     """
     # Redis: Get recent requests from sorted set (last hour)
     return await db_manager.get_recent_trip_requests(limit)
@@ -331,8 +279,7 @@ class DataService:
     driver_id: str,
     hours: int = 24,
   ) -> list[dict[str, Any]]:
-    """
-    Get driver's state change history.
+    """Get driver's state change history.
 
     Args:
         driver_id: Driver identifier.
@@ -340,10 +287,11 @@ class DataService:
 
     Returns:
         List of state changes with timestamps.
+
     """
     # SQLite: Query historical state changes
-    cutoff_time = datetime.now().timestamp() - (hours * 3600)
-    cutoff_datetime = datetime.fromtimestamp(cutoff_time)
+    cutoff_time = datetime.now(UTC).timestamp() - (hours * 3600)
+    cutoff_datetime = datetime.fromtimestamp(cutoff_time, tz=UTC)
 
     async with db_manager.get_session() as session:
       stmt = (
@@ -365,3 +313,338 @@ class DataService:
         }
         for record in records
       ]
+
+  async def store_working_hours(
+    self,
+    driver_id: str,
+    start_hour: int,
+    end_hour: int,
+    city_id: int,
+  ) -> dict[str, Any]:
+    """Store driver's working hours preferences.
+
+    Args:
+        driver_id: Driver identifier.
+        start_hour: Start hour (0-23).
+        end_hour: End hour (0-23).
+        city_id: City identifier.
+
+    Returns:
+        Confirmation with stored data.
+
+    """
+    timestamp = datetime.now(UTC)
+
+    async with db_manager.get_session() as session:
+      # Check if preferences already exist
+      stmt = select(DriverPreferences).where(DriverPreferences.driver_id == driver_id)
+      result = await session.execute(stmt)
+      existing = result.scalar_one_or_none()
+
+      if existing:
+        # Update existing preferences
+        existing.start_hour = start_hour
+        existing.end_hour = end_hour
+        existing.city_id = city_id
+        existing.updated_at = timestamp
+      else:
+        # Create new preferences
+        preferences = DriverPreferences(
+          driver_id=driver_id,
+          start_hour=start_hour,
+          end_hour=end_hour,
+          city_id=city_id,
+          updated_at=timestamp,
+        )
+        session.add(preferences)
+
+      await session.commit()
+
+    return {
+      "driver_id": driver_id,
+      "start_hour": start_hour,
+      "end_hour": end_hour,
+      "city_id": city_id,
+      "updated_at": timestamp.isoformat(),
+    }
+
+  async def get_working_hours(self, driver_id: str) -> dict[str, Any] | None:
+    """Get driver's working hours preferences.
+
+    Args:
+      driver_id: Driver identifier.
+
+    Returns:
+      Working hours or None if not set.
+
+    """
+    async with db_manager.get_session() as session:
+      stmt = select(DriverPreferences).where(DriverPreferences.driver_id == driver_id)
+      result = await session.execute(stmt)
+      preferences = result.scalar_one_or_none()
+
+      if preferences:
+        return {
+          "driver_id": preferences.driver_id,
+          "start_hour": preferences.start_hour,
+          "end_hour": preferences.end_hour,
+          "city_id": preferences.city_id,
+          "updated_at": preferences.updated_at.isoformat(),
+        }
+
+      return None
+
+  async def get_optimal_time(self, driver_id: str) -> dict[str, Any]:
+    """Get optimal start time based on driver's working hours.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        Optimal time with score and remaining hours.
+
+    """
+    # Get driver's working hours
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    # Calculate optimal time
+    result = await self.compute_service.get_optimal_time(
+      driver_id=driver_id,
+      start_hour=preferences["start_hour"],
+      end_hour=preferences["end_hour"],
+      city_id=preferences["city_id"],
+    )
+
+    # Publish notification to Redis pub/sub
+    await db_manager.publish_optimal_time_notification(
+      driver_id=driver_id,
+      optimal_time=result["optimal_time"],
+      score=result["score"],
+      remaining_hours=result["remaining_hours"],
+    )
+
+    return result
+
+  async def get_all_time_scores(self, driver_id: str) -> list[dict[str, Any]]:
+    """Get scores for all possible start times.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        List of time scores.
+
+    """
+    # Get driver's working hours
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    # Get all time scores
+    return await self.compute_service.get_all_time_scores(
+      driver_id=driver_id,
+      start_hour=preferences["start_hour"],
+      end_hour=preferences["end_hour"],
+      city_id=preferences["city_id"],
+    )
+
+  async def select_time(self, driver_id: str, time: int) -> dict[str, Any]:
+    """Select a start time and store it.
+
+    Args:
+        driver_id: Driver identifier.
+        time: Selected hour (0-23).
+
+    Returns:
+        Confirmation with selected time and remaining hours.
+
+    """
+    # Get driver's working hours to calculate remaining hours
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    start_hour = preferences["start_hour"]
+    end_hour = preferences["end_hour"]
+
+    # Calculate remaining hours
+    if end_hour < start_hour:  # Wrap-around case
+      if time >= start_hour:
+        remaining_hours = 24 - time + end_hour
+      else:
+        remaining_hours = end_hour - time
+    else:
+      remaining_hours = end_hour - time
+
+    if remaining_hours <= 0:
+      raise TimeOutsideWorkingHoursError
+
+    # Store selection in Redis
+    await db_manager.set_driver_selections(
+      driver_id=driver_id,
+      selected_time=time,
+      remaining_hours=remaining_hours,
+    )
+
+    return {
+      "driver_id": driver_id,
+      "selected_time": time,
+      "remaining_hours": remaining_hours,
+    }
+
+  async def get_zone_scores(self, driver_id: str) -> list[dict[str, Any]]:
+    """Get ranked zones for driver's selected time.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        List of zone scores.
+
+    """
+    # Get driver's selections
+    selections = await db_manager.get_driver_selections(driver_id)
+    if not selections or selections.get("selected_time") is None:
+      raise TimeNotSelectedError
+
+    # Get working hours for city_id
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    # Get zone scores
+    return await self.compute_service.get_all_zone_scores(
+      driver_id=driver_id,
+      start_time=selections["selected_time"],
+      remaining_hours=selections["remaining_hours"],
+      city_id=preferences["city_id"],
+    )
+
+  async def get_best_zone(self, driver_id: str, current_time: int | None = None) -> dict[str, Any]:
+    """Get best zone for current or selected time.
+
+    Args:
+        driver_id: Driver identifier.
+        current_time: Current hour (0-23), or None to use selected time.
+
+    Returns:
+        Best zone with score and coordinates.
+
+    """
+    # Get driver's preferences
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    # Determine time and remaining hours
+    if current_time is not None:
+      # Calculate remaining hours from current_time
+      start_hour = preferences["start_hour"]
+      end_hour = preferences["end_hour"]
+
+      if end_hour < start_hour:  # Wrap-around case
+        if current_time >= start_hour:
+          remaining_hours = 24 - current_time + end_hour
+        else:
+          remaining_hours = end_hour - current_time
+      else:
+        remaining_hours = end_hour - current_time
+
+      if remaining_hours <= 0:
+        raise CurrentTimeOutsideWorkingHoursError
+
+      time_to_use = current_time
+    else:
+      # Use selected time
+      selections = await db_manager.get_driver_selections(driver_id)
+      if not selections or selections.get("selected_time") is None:
+        raise TimeNotSelectedAndNoCurrentTimeError()
+
+      time_to_use = selections["selected_time"]
+      remaining_hours = selections["remaining_hours"]
+
+    # Get best zone
+    return await self.compute_service.get_best_zone_for_time(
+      driver_id=driver_id,
+      start_time=time_to_use,
+      remaining_hours=remaining_hours,
+      city_id=preferences["city_id"],
+    )
+
+  async def get_driver_selections(self, driver_id: str) -> dict[str, Any]:
+    """Get driver's current selections.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        Driver selections (time, remaining_hours, zone).
+
+    """
+    selections = await db_manager.get_driver_selections(driver_id)
+
+    if selections:
+      return {
+        "selected_time": selections.get("selected_time"),
+        "remaining_hours": selections.get("remaining_hours"),
+        "selected_zone": selections.get("selected_zone"),
+      }
+
+    return {
+      "selected_time": None,
+      "remaining_hours": None,
+      "selected_zone": None,
+    }
+
+  async def start_driving(self, driver_id: str, current_time: int) -> dict[str, Any]:
+    """Get optimal zone center for driver starting to drive.
+
+    Args:
+        driver_id: Driver identifier.
+        current_time: Current hour (0-23).
+
+    Returns:
+        Optimal zone with center coordinate.
+
+    """
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
+
+    start_hour = preferences["start_hour"]
+    end_hour = preferences["end_hour"]
+
+    if end_hour < start_hour:
+      if current_time >= start_hour:
+        remaining_hours = 24 - current_time + end_hour
+      else:
+        remaining_hours = end_hour - current_time
+    else:
+      remaining_hours = end_hour - current_time
+
+    if remaining_hours <= 0:
+      raise CurrentTimeOutsideWorkingHoursError
+
+    best_zone = await self.compute_service.get_best_zone_for_time(
+      driver_id=driver_id,
+      start_time=current_time,
+      remaining_hours=remaining_hours,
+      city_id=preferences["city_id"],
+    )
+
+    # TODO: Get actual hexagons for the zone and calculate center
+    # For now, use the single hexagon coordinate as zone center
+    zone_center = {
+      "lat": best_zone["lat"],
+      "lon": best_zone["lon"],
+    }
+
+    return {
+      "zone_id": best_zone["hexagon_id"],
+      "zone_center": zone_center,
+      "score": best_zone["score"],
+      "current_time": current_time,
+      "remaining_hours": remaining_hours,
+    }
