@@ -8,13 +8,19 @@ interface WellnessNudgeProps {
   onDismiss: () => void;
 }
 
-export default function WellnessNudge({ drivingSeconds, onOpenCopilot, isDismissed, onDismiss }: WellnessNudgeProps) {
+export default function WellnessNudge({
+  drivingSeconds,
+  onOpenCopilot,
+  isDismissed,
+  onDismiss,
+}: WellnessNudgeProps) {
   const [showNudge, setShowNudge] = useState(false);
   const [hasShown, setHasShown] = useState(false);
 
   useEffect(() => {
-    // Show nudge at 4h 30m (16200 seconds) only once
+    // Trigger at exactly 4h30m (16200s)
     if (drivingSeconds >= 16200 && !hasShown && !isDismissed) {
+      console.log("🚨 Wellness nudge triggered at:", drivingSeconds);
       setShowNudge(true);
       setHasShown(true);
     }
@@ -29,11 +35,14 @@ export default function WellnessNudge({ drivingSeconds, onOpenCopilot, isDismiss
           <Text style={styles.emoji}>⚠️</Text>
           <Text style={styles.title}>Time for a Break</Text>
           <Text style={styles.message}>
-            You've been driving for 4.5 hours. Taking a break now can help you stay alert and safe on the road.
+            You've been driving for 4.5 hours. Taking a break now can help you stay alert and safe
+            on the road.
           </Text>
+
           <TouchableOpacity
             style={styles.button}
             onPress={() => {
+              console.log("➡️ Opening Copilot");
               setShowNudge(false);
               onDismiss();
               onOpenCopilot();
@@ -41,9 +50,11 @@ export default function WellnessNudge({ drivingSeconds, onOpenCopilot, isDismiss
           >
             <Text style={styles.buttonText}>Open Wellness Copilot</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.dismissButton}
             onPress={() => {
+              console.log("✋ Dismissed nudge");
               setShowNudge(false);
               onDismiss();
             }}
@@ -72,16 +83,8 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: "center",
   },
-  emoji: {
-    fontSize: 48,
-    marginBottom: 15,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 15,
-    textAlign: "center",
-  },
+  emoji: { fontSize: 48, marginBottom: 15 },
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
   message: {
     fontSize: 16,
     color: "#333",
@@ -97,17 +100,7 @@ const styles = StyleSheet.create({
     width: "100%",
     marginBottom: 12,
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  dismissButton: {
-    padding: 12,
-    alignItems: "center",
-  },
-  dismissText: {
-    color: "#666",
-    fontSize: 16,
-  },
+  buttonText: { color: "#fff", fontSize: 17, fontWeight: "600" },
+  dismissButton: { padding: 12, alignItems: "center" },
+  dismissText: { color: "#666", fontSize: 16 },
 });

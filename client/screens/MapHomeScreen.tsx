@@ -2,13 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DriverStatus from "../components/DriverStatus";
+import OptimalDetailsPanel from "../components/OptimalDetailsPanel";
 import SchedulePanel from "../components/SchedulePanel";
 import WellnessNudge from "../components/WellnessNudge";
-import OptimalDetailsPanel from "../components/OptimalDetailsPanel";
+import Config from "../config/Config";
+import { getDrivingHours } from "../services/drivingSessionService";
 
 export default function MapHomeScreen() {
   const navigation = useNavigation<any>();
@@ -20,7 +21,7 @@ export default function MapHomeScreen() {
   const [optimalTime, setOptimalTime] = useState<string | null>(null);
   const [optimalTimeHour, setOptimalTimeHour] = useState<number | null>(null);
   const [nrHours, setNrHours] = useState<number | null>(null);
-  const [earnings, setEarnings] = useState(247.50);
+  const [earnings, setEarnings] = useState(247.5);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [progressWidth, setProgressWidth] = useState(0);
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
@@ -47,16 +48,18 @@ export default function MapHomeScreen() {
   }, []);
 
   // ⏱ Track driving time - Update hours from server periodically
+  // ⏱ Track driving time - Count up + sync with backend
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
     let hoursTimer: NodeJS.Timeout | null = null;
 
     if (isOnline) {
+      // Start counting up from the current value
       timer = setInterval(() => {
         setDrivingSeconds((prev) => prev + 1);
       }, 1000);
 
-      // Fetch hours from server every 30 seconds
+      // Fetch hours from backend every 30s
       hoursTimer = setInterval(async () => {
         try {
           const data = await getDrivingHours(Config.DEFAULT_DRIVER_ID);
@@ -77,7 +80,6 @@ export default function MapHomeScreen() {
       if (hoursTimer) clearInterval(hoursTimer);
     };
   }, [isOnline]);
-
   // Schedule button is always enabled to allow setting multiple preferences
 
   // Update current time every second
@@ -103,21 +105,21 @@ export default function MapHomeScreen() {
     }
   }, [currentTime, optimalTime, isOnline, scheduleStartTime]);
 
-  // Countdown remaining time when online
-  useEffect(() => {
-    if (isOnline) {
-      if (remainingTime === null) {
-        // Initialize with 5 hours for demo (18000 seconds = 5:00:00)
-        setRemainingTime(18000);
-      } else if (remainingTime > 0) {
-        // Decrement every second
-        const timer = setTimeout(() => {
-          setRemainingTime(remainingTime - 1);
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [isOnline, remainingTime]);
+  // // Countdown remaining time when online
+  // useEffect(() => {
+  //   if (isOnline) {
+  //     if (remainingTime === null) {
+  //       // Initialize with 5 hours for demo (18000 seconds = 5:00:00)
+  //       setRemainingTime(18000);
+  //     } else if (remainingTime > 0) {
+  //       // Decrement every second
+  //       const timer = setTimeout(() => {
+  //         setRemainingTime(remainingTime - 1);
+  //       }, 1000);
+  //       return () => clearTimeout(timer);
+  //     }
+  //   }
+  // }, [isOnline, remainingTime]);
 
   if (!location)
     return (
@@ -127,7 +129,7 @@ export default function MapHomeScreen() {
     );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Map */}
       <MapView style={StyleSheet.absoluteFillObject} region={location}>
         <Marker coordinate={location} title="You">
@@ -184,10 +186,7 @@ export default function MapHomeScreen() {
 
             {/* Schedule button */}
             <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.scheduleActionButton,
-              ]}
+              style={[styles.actionButton, styles.scheduleActionButton]}
               onPress={() => setIsScheduleOpen(true)}
             >
               <View style={styles.actionButtonInner}>
@@ -208,10 +207,12 @@ export default function MapHomeScreen() {
                 <Text style={styles.optimalText}>{optimalTime}</Text>
               </TouchableOpacity>
             </View>
-          ) : isOnline && remainingTime !== null ? (
+          ) : isOnline ? (
             <View style={styles.statusBarOnline}>
               <Text style={styles.statusTextOnline}>
-                {Math.floor(remainingTime / 3600)}:{String(Math.floor((remainingTime % 3600) / 60)).padStart(2, '0')}:{String(remainingTime % 60).padStart(2, '0')}
+                {Math.floor(drivingSeconds / 3600)}:
+                {String(Math.floor((drivingSeconds % 3600) / 60)).padStart(2, "0")}:
+                {String(drivingSeconds % 60).padStart(2, "0")}
               </Text>
             </View>
           ) : (
@@ -219,6 +220,31 @@ export default function MapHomeScreen() {
               <Text style={styles.statusText}>{isOnline ? "Online" : "Offline"}</Text>
             </View>
           )}
+
+          {/* {optimalTime && !isOnline ? (
+            <View style={styles.optimalBar}>
+              <View style={[styles.progressBar, { width: `${progressWidth}%` }]} />
+              <TouchableOpacity
+                style={styles.timeContainer}
+                onPress={() => setIsOptimalDetailsOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.optimalText}>{optimalTime}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isOnline && remainingTime !== null ? (
+            <View style={styles.statusBarOnline}>
+              <Text style={styles.statusTextOnline}>
+                {Math.floor(remainingTime / 3600)}:
+                {String(Math.floor((remainingTime % 3600) / 60)).padStart(2, "0")}:
+                {String(remainingTime % 60).padStart(2, "0")}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.statusBar}>
+              <Text style={styles.statusText}>{isOnline ? "Online" : "Offline"}</Text>
+            </View>
+          )} */}
         </View>
       )}
 
@@ -227,9 +253,7 @@ export default function MapHomeScreen() {
         <View style={styles.dialogOverlay}>
           <View style={styles.dialogBox}>
             <Text style={styles.dialogTitle}>Start Driving?</Text>
-            <Text style={styles.dialogMessage}>
-              Are you ready to go online?
-            </Text>
+            <Text style={styles.dialogMessage}>Are you ready to go online?</Text>
             <View style={styles.dialogButtons}>
               <TouchableOpacity
                 style={styles.dialogButtonConfirm}
@@ -265,7 +289,7 @@ export default function MapHomeScreen() {
       />
 
       {/* 🚨 Wellness Nudge */}
-      {/* <WellnessNudge
+      <WellnessNudge
         drivingSeconds={drivingSeconds}
         onOpenCopilot={() => navigation.navigate("Copilot")}
         isDismissed={wellnessNudgeDismissed}
@@ -592,3 +616,6 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 });
+function setHoursToday(total_hours_today: number) {
+  throw new Error("Function not implemented.");
+}

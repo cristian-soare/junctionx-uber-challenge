@@ -1,9 +1,19 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, PanResponder, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  Modal,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Config from "../config/Config";
-import { saveWorkingHours, getOptimalTime } from "../services/preferencesService";
 import { hourToTimeString } from "../models/api";
+import { getOptimalTime, saveWorkingHours } from "../services/preferencesService";
 
 interface SchedulePanelProps {
   visible: boolean;
@@ -12,10 +22,30 @@ interface SchedulePanelProps {
 }
 
 const TIME_SLOTS = [
-  "00:01", "01:00", "02:00", "03:00", "04:00", "05:00",
-  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
-  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
-  "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
+  "00:00",
+  "01:00",
+  "02:00",
+  "03:00",
+  "04:00",
+  "05:00",
+  "06:00",
+  "07:00",
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
+  "21:00",
+  "22:00",
+  "23:00",
 ];
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -77,7 +107,7 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   const handleTimeSlotPress = (index: number) => {
@@ -121,17 +151,8 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity
-        style={styles.backdrop}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[
             styles.container,
@@ -146,98 +167,103 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
             </View>
 
             <View style={styles.content}>
-          <Text style={styles.title}>Schedule your drive</Text>
+              <Text style={styles.title}>Schedule your drive</Text>
 
-          <View style={styles.section}>
-            <Text style={styles.label}>
-              {startIndex === null
-                ? "Select start time"
-                : endIndex === null
-                ? "Select end time"
-                : `${TIME_SLOTS[startIndex]} - ${TIME_SLOTS[endIndex]} (${calculateHours()}h)`}
-            </Text>
-            <View style={styles.timeGrid}>
-              {TIME_SLOTS.map((time, index) => (
-                <TouchableOpacity
-                  key={`${time}-${index}`}
-                  style={[
-                    styles.timeSlot,
-                    isInRange(index) && styles.timeSlotInRange,
-                    isEdge(index) && styles.timeSlotSelected,
-                  ]}
-                  onPress={() => handleTimeSlotPress(index)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.timeSlotText,
-                      isInRange(index) && styles.timeSlotTextInRange,
-                      isEdge(index) && styles.timeSlotTextSelected,
-                    ]}
-                  >
-                    {time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              <View style={styles.section}>
+                <Text style={styles.label}>
+                  {startIndex === null
+                    ? "Select start time"
+                    : endIndex === null
+                      ? "Select end time"
+                      : `${TIME_SLOTS[startIndex]} - ${TIME_SLOTS[endIndex]} (${calculateHours()}h)`}
+                </Text>
+                <View style={styles.timeGrid}>
+                  {TIME_SLOTS.map((time, index) => (
+                    <TouchableOpacity
+                      key={`${time}-${index}`}
+                      style={[
+                        styles.timeSlot,
+                        isInRange(index) && styles.timeSlotInRange,
+                        isEdge(index) && styles.timeSlotSelected,
+                      ]}
+                      onPress={() => handleTimeSlotPress(index)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.timeSlotText,
+                          isInRange(index) && styles.timeSlotTextInRange,
+                          isEdge(index) && styles.timeSlotTextSelected,
+                        ]}
+                      >
+                        {time}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.label}>Driving hours: {hours}h</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={1}
+                  maximumValue={24}
+                  step={1}
+                  value={hours}
+                  onValueChange={setHours}
+                  minimumTrackTintColor="#000"
+                  maximumTrackTintColor="#E5E5E5"
+                  thumbTintColor="#000"
+                />
+                <View style={styles.sliderLabels}>
+                  <Text style={styles.sliderLabel}>1h</Text>
+                  <Text style={styles.sliderLabel}>24h</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.continueButton,
+                  (startIndex === null || endIndex === null || isLoading) &&
+                    styles.continueButtonDisabled,
+                ]}
+                onPress={async () => {
+                  if (startIndex !== null && endIndex !== null && !isLoading) {
+                    try {
+                      setIsLoading(true);
+
+                      // Save preferences to backend
+                      await saveWorkingHours(Config.DEFAULT_DRIVER_ID, {
+                        earliest_start_time: TIME_SLOTS[startIndex],
+                        latest_start_time: TIME_SLOTS[endIndex],
+                        nr_hours: Math.round(hours), // Ensure integer value
+                      });
+
+                      const optimalResponse = await getOptimalTime(Config.DEFAULT_DRIVER_ID);
+                      const optimalTimeString = hourToTimeString(optimalResponse.optimal_time);
+
+                      onSchedule(
+                        optimalTimeString,
+                        optimalResponse.optimal_time,
+                        Math.round(hours),
+                      );
+                    } catch (error) {
+                      console.error("Failed to save preferences:", error);
+                      Alert.alert("Error", "Failed to save preferences. Please try again.");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }
+                }}
+                disabled={startIndex === null || endIndex === null || isLoading}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.continueText}>
+                  {isLoading ? "Loading..." : "Get Recommendations"}
+                </Text>
+              </TouchableOpacity>
             </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.label}>Driving hours: {hours}h</Text>
-            <Slider
-              style={styles.slider}
-              minimumValue={1}
-              maximumValue={24}
-              step={1}
-              value={hours}
-              onValueChange={setHours}
-              minimumTrackTintColor="#000"
-              maximumTrackTintColor="#E5E5E5"
-              thumbTintColor="#000"
-            />
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>1h</Text>
-              <Text style={styles.sliderLabel}>24h</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              (startIndex === null || endIndex === null || isLoading) && styles.continueButtonDisabled,
-            ]}
-            onPress={async () => {
-              if (startIndex !== null && endIndex !== null && !isLoading) {
-                try {
-                  setIsLoading(true);
-
-                  // Save preferences to backend
-                  await saveWorkingHours(Config.DEFAULT_DRIVER_ID, {
-                    earliest_start_time: TIME_SLOTS[startIndex],
-                    latest_start_time: TIME_SLOTS[endIndex],
-                    nr_hours: Math.round(hours), // Ensure integer value
-                  });
-
-                  const optimalResponse = await getOptimalTime(Config.DEFAULT_DRIVER_ID);
-                  const optimalTimeString = hourToTimeString(optimalResponse.optimal_time);
-
-                  onSchedule(optimalTimeString, optimalResponse.optimal_time, Math.round(hours));
-                } catch (error) {
-                  console.error("Failed to save preferences:", error);
-                  Alert.alert("Error", "Failed to save preferences. Please try again.");
-                } finally {
-                  setIsLoading(false);
-                }
-              }
-            }}
-            disabled={startIndex === null || endIndex === null || isLoading}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.continueText}>
-              {isLoading ? "Loading..." : "Get Recommendations"}
-            </Text>
-          </TouchableOpacity>
-        </View>
           </View>
         </Animated.View>
       </TouchableOpacity>
