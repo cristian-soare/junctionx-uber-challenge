@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, ScrollView } from "react-native";
-import { getTimeScores, getBestZone, getZoneScores } from "../services/preferencesService";
+import { getTimeScores, getBestZone, getZoneScores, selectTime, selectZone, getOptimalTime } from "../services/preferencesService";
 import { TimeScore, BestZoneResponse, ZoneScore } from "../models/api";
 import { hourToTimeString, timeStringToHour } from "../models/api";
 import Config from "../config/Config";
@@ -11,7 +11,7 @@ interface OptimalDetailsPanelProps {
   optimalTime: string;
   optimalTimeHour: number | null;
   nrHours: number | null;
-  onTimeChange: (newTime: string) => void;
+  onTimeChange: (newTime: string, newHour: number, newNrHours: number) => void;
 }
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -25,7 +25,7 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const [timeSlots, setTimeSlots] = useState<Array<{id: string, timeShort: string, timeFull: string, optimality: number, hour: number}>>([]);
-  const [zoneSlots, setZoneSlots] = useState<Array<{id: string, zoneShort: string, zoneFull: string, optimality: number, zoneIndex: number}>>([]);
+  const [zoneSlots, setZoneSlots] = useState<Array<{id: string, zoneShort: string, zoneFull: string, optimality: number, zoneIndex: number, clusterId: string}>>([]);
   const [bestZone, setBestZone] = useState<BestZoneResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedZoneIndex, setSelectedZoneIndex] = useState(0);
@@ -57,45 +57,55 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
     }
   }, [visible]);
 
-  const parseZoneId = (clusterId: string, index: number): string => {
-    return `Z${index + 1}`;
+  const parseZoneId = (clusterId: string): string => {
+    const match = clusterId.match(/c_(\d+)_(\d+)/);
+    if (match) {
+      const zoneNumber = parseInt(match[2], 10) + 1;
+      return `Z${zoneNumber}`;
+    }
+    return clusterId;
   };
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
 
-      const [timeScoresResponse, zoneScoresResponse] = await Promise.all([
-        getTimeScores(Config.DEFAULT_DRIVER_ID),
-        getZoneScores(Config.DEFAULT_DRIVER_ID)
-      ]);
+      const timeScoresResponse = await getTimeScores(Config.DEFAULT_DRIVER_ID);
 
-      const bestZoneResponse = optimalTimeHour !== null
-        ? await getBestZone(Config.DEFAULT_DRIVER_ID, optimalTimeHour)
-        : null;
-
+      const maxTimeScore = Math.max(...timeScoresResponse.scores.map(s => s.score), 1);
       const slots = timeScoresResponse.scores.map((score: TimeScore) => ({
         id: `slot-${score.time}`,
         timeShort: `${String(score.time).padStart(2, '0')}`,
         timeFull: hourToTimeString(score.time),
-        optimality: Math.round(score.score * 100),
+        optimality: Math.round((score.score / maxTimeScore) * 100),
         hour: score.time
       }));
 
-      const maxZoneScore = Math.max(...zoneScoresResponse.zones.map(z => z.score), 1);
-      const zones = zoneScoresResponse.zones.map((zone: ZoneScore, index: number) => ({
-        id: `zone-${zone.cluster_id}`,
-        zoneShort: parseZoneId(zone.cluster_id, index),
-        zoneFull: zone.cluster_id,
-        optimality: Math.round((zone.score / maxZoneScore) * 100),
-        zoneIndex: index
-      }));
-
       setTimeSlots(slots);
-      setZoneSlots(zones);
-      setBestZone(bestZoneResponse);
       barHeightsRef.current = slots.map(() => new Animated.Value(0));
-      zoneBarHeightsRef.current = zones.map(() => new Animated.Value(0));
+
+      if (optimalTimeHour !== null) {
+        await selectTime(Config.DEFAULT_DRIVER_ID, optimalTimeHour);
+
+        const [zoneScoresResponse, bestZoneResponse] = await Promise.all([
+          getZoneScores(Config.DEFAULT_DRIVER_ID),
+          getBestZone(Config.DEFAULT_DRIVER_ID, optimalTimeHour)
+        ]);
+
+        const maxZoneScore = Math.max(...zoneScoresResponse.zones.map(z => z.score), 1);
+        const zones = zoneScoresResponse.zones.map((zone: ZoneScore, index: number) => ({
+          id: `zone-${zone.cluster_id}`,
+          zoneShort: parseZoneId(zone.cluster_id),
+          zoneFull: parseZoneId(zone.cluster_id),
+          optimality: Math.round((zone.score / maxZoneScore) * 100),
+          zoneIndex: index,
+          clusterId: zone.cluster_id
+        }));
+
+        setZoneSlots(zones);
+        setBestZone(bestZoneResponse);
+        zoneBarHeightsRef.current = zones.map(() => new Animated.Value(0));
+      }
     } catch (error) {
       console.error("Failed to fetch optimal details:", error);
     } finally {
@@ -151,10 +161,37 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
     setSelectedTimeIndex(index);
   };
 
-  const handleConfirmTime = () => {
-    const newTime = timeSlots[selectedTimeIndex]?.timeFull ?? optimalTime;
-    onTimeChange(newTime);
-    setShowTimeDetails(false);
+  const handleConfirmTime = async () => {
+    try {
+      const selectedHour = timeSlots[selectedTimeIndex]?.hour;
+      if (selectedHour !== undefined) {
+        await selectTime(Config.DEFAULT_DRIVER_ID, selectedHour);
+
+        const [zoneScoresResponse, bestZoneResponse] = await Promise.all([
+          getZoneScores(Config.DEFAULT_DRIVER_ID),
+          getBestZone(Config.DEFAULT_DRIVER_ID, selectedHour)
+        ]);
+
+        const maxZoneScore = Math.max(...zoneScoresResponse.zones.map(z => z.score), 1);
+        const zones = zoneScoresResponse.zones.map((zone: ZoneScore, index: number) => ({
+          id: `zone-${zone.cluster_id}`,
+          zoneShort: parseZoneId(zone.cluster_id),
+          zoneFull: parseZoneId(zone.cluster_id),
+          optimality: Math.round((zone.score / maxZoneScore) * 100),
+          zoneIndex: index,
+          clusterId: zone.cluster_id
+        }));
+
+        setZoneSlots(zones);
+        setBestZone(bestZoneResponse);
+        zoneBarHeightsRef.current = zones.map(() => new Animated.Value(0));
+        const newTime = timeSlots[selectedTimeIndex]?.timeFull ?? optimalTime;
+        onTimeChange(newTime, selectedHour, nrHours ?? 0);
+      }
+      setShowTimeDetails(false);
+    } catch (error) {
+      console.error("Failed to confirm time:", error);
+    }
   };
 
   if (showTimeDetails) {
@@ -234,12 +271,60 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
 
   const handleZoneMomentumScrollEnd = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.max(0, Math.min(zoneSlots.length - 1, Math.round(offsetX / ITEM_WIDTH)));
-    setSelectedZoneIndex(index);
+    const index = Math.round(offsetX / ITEM_WIDTH);
+    const clampedIndex = Math.max(0, Math.min(zoneSlots.length - 1, index));
+    setSelectedZoneIndex(clampedIndex);
   };
 
-  const handleConfirmZone = () => {
-    setShowZoneDetails(false);
+  const handleZoneScroll = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / ITEM_WIDTH);
+    const clampedIndex = Math.max(0, Math.min(zoneSlots.length - 1, index));
+    setSelectedZoneIndex(clampedIndex);
+  };
+
+  const handleConfirmZone = async () => {
+    try {
+      const selectedClusterId = zoneSlots[selectedZoneIndex]?.clusterId;
+      if (selectedClusterId) {
+        await selectZone(Config.DEFAULT_DRIVER_ID, selectedClusterId);
+
+        setBestZone({
+          cluster_id: selectedClusterId,
+          score: 0,
+          expected_earnings: 0,
+          expected_hourly_rate: 0,
+          lat: 0,
+          lon: 0,
+          lat_min: 0,
+          lat_max: 0,
+          lon_min: 0,
+          lon_max: 0
+        });
+
+        const [optimalTimeResponse, timeScoresResponse] = await Promise.all([
+          getOptimalTime(Config.DEFAULT_DRIVER_ID),
+          getTimeScores(Config.DEFAULT_DRIVER_ID)
+        ]);
+
+        const newOptimalTime = hourToTimeString(optimalTimeResponse.optimal_time);
+        onTimeChange(newOptimalTime, optimalTimeResponse.optimal_time, nrHours ?? 0);
+
+        const maxTimeScore = Math.max(...timeScoresResponse.scores.map(s => s.score), 1);
+        const slots = timeScoresResponse.scores.map((score: TimeScore) => ({
+          id: `time-${score.time}`,
+          timeShort: `${score.time}h`,
+          timeFull: hourToTimeString(score.time),
+          optimality: Math.round((score.score / maxTimeScore) * 100),
+          hour: score.time
+        }));
+        setTimeSlots(slots);
+        barHeightsRef.current = slots.map(() => new Animated.Value(0));
+      }
+      setShowZoneDetails(false);
+    } catch (error) {
+      console.error("Failed to confirm zone:", error);
+    }
   };
 
   if (showZoneDetails) {
@@ -262,8 +347,9 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
                 showsHorizontalScrollIndicator={false}
                 snapToInterval={ITEM_WIDTH}
                 snapToAlignment="center"
-                decelerationRate="normal"
+                decelerationRate="fast"
                 contentContainerStyle={[styles.scrollContent, { paddingHorizontal: paddingSide }]}
+                onScroll={handleZoneScroll}
                 onMomentumScrollEnd={handleZoneMomentumScrollEnd}
                 scrollEventThrottle={16}
               >
@@ -274,9 +360,6 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
 
                   return (
                     <View key={slot.id} style={styles.barItem}>
-                      <Text style={[styles.hoursLabel, isSelected && styles.hoursLabelSelected]}>
-                        {slot.zoneFull}
-                      </Text>
                       <Text style={styles.percentLabel}>{slot.optimality}%</Text>
 
                       <Animated.View
@@ -354,7 +437,7 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
               <Text style={styles.zoneLabel}>Optimal Zone</Text>
               <View style={styles.zoneBox}>
                 <Text style={styles.zoneText}>
-                  {isLoading ? "Loading..." : bestZone?.cluster_id ? `${bestZone.cluster_id}` : "No zone"}
+                  {isLoading ? "Loading..." : bestZone?.cluster_id ? parseZoneId(bestZone.cluster_id) : "No zone"}
                 </Text>
               </View>
             </TouchableOpacity>

@@ -116,6 +116,26 @@ export async function getBestZone(
   return JSON.parse(responseText);
 }
 
+export async function selectTime(
+  driverId: string,
+  time: number
+): Promise<void> {
+  const url = `${Config.API_BASE_URL}/drivers/${driverId}/selections/time`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ time }),
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
+  }
+}
+
 export async function getZoneScores(
   driverId: string
 ): Promise<ZoneScoresResponse> {
@@ -138,4 +158,24 @@ export async function getZoneScores(
   }
 
   return JSON.parse(responseText);
+}
+
+export async function selectZone(
+  driverId: string,
+  clusterId: string
+): Promise<void> {
+  const url = `${Config.API_BASE_URL}/drivers/${driverId}/selections/zone`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ cluster_id: clusterId }),
+  });
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
+  }
 }

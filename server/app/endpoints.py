@@ -17,6 +17,7 @@ from app.schemas.input import (
   TripRequestInput,
   WeatherUpdateRequest,
   WorkingHoursRequest,
+  ZoneSelectionRequest,
 )
 from app.schemas.output import (
   BestZoneResponse,
@@ -620,6 +621,40 @@ async def select_time(driver_id: str, request: TimeSelectionRequest) -> dict[str
     raise HTTPException(
       status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
       detail=f"Failed to select time: {e!s}",
+    ) from e
+
+
+@router.post(
+  "/drivers/{driver_id}/selections/zone",
+  status_code=status.HTTP_201_CREATED,
+  summary="Select zone",
+  description="Select a zone/cluster and store it in Redis",
+  response_description="Selection confirmation",
+  tags=["drivers", "selections"],
+)
+async def select_zone(driver_id: str, request: ZoneSelectionRequest) -> dict[str, Any]:
+  """Select a zone.
+
+  Stores the selected cluster_id in Redis for the driver.
+
+  Args:
+    driver_id: Driver identifier
+    request: Selected cluster_id
+
+  Returns:
+    Success response with selected cluster_id
+
+  Raises:
+    HTTPException: 500 if storage fails
+
+  """
+  try:
+    result = await data_service.select_zone(driver_id, request.cluster_id)
+    return {"status": "success", "data": result}
+  except Exception as e:
+    raise HTTPException(
+      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+      detail=f"Failed to select zone: {e!s}",
     ) from e
 
 

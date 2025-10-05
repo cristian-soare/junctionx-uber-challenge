@@ -68,8 +68,17 @@ class DataService:
       stmt = select(Driver).where(Driver.driver_id == driver_id)
       result = await session.execute(stmt)
       existing = result.scalar_one_or_none()
+
       if existing:
-        raise ValueError(f"Driver {driver_id} is already registered.")
+        existing.city_id = city_id
+        existing.updated_at = timestamp
+        await session.commit()
+        return {
+          "driver_id": driver_id,
+          "city_id": city_id,
+          "registered_at": existing.created_at.isoformat(),
+          "updated": True,
+        }
 
       driver = Driver(
         driver_id=driver_id,
@@ -84,6 +93,7 @@ class DataService:
         "driver_id": driver_id,
         "city_id": city_id,
         "registered_at": timestamp.isoformat(),
+        "updated": False,
       }
 
   async def get_driver(self, driver_id: str) -> dict[str, Any]:
@@ -737,6 +747,27 @@ class DataService:
       city_id=city_id,
     )
 
+  async def select_zone(self, driver_id: str, cluster_id: str) -> dict[str, Any]:
+    """Select a zone and store it.
+
+    Args:
+        driver_id: Driver identifier.
+        cluster_id: Selected cluster/zone ID.
+
+    Returns:
+        Confirmation with selected cluster_id.
+
+    """
+    await db_manager.set_driver_selections(
+      driver_id=driver_id,
+      selected_zone=cluster_id,
+    )
+
+    return {
+      "driver_id": driver_id,
+      "selected_zone": cluster_id,
+    }
+
   async def get_driver_selections(self, driver_id: str) -> dict[str, Any]:
     """Get driver's current selections.
 
@@ -803,17 +834,17 @@ class DataService:
       city_id=city_id,
     )
 
-    zone_center = {
-      "lat": best_zone["lat"],
-      "lon": best_zone["lon"],
-    }
-
-    zone_corners = await self.compute_service.get_zone_corners(best_zone["hexagon_id"], city_id)
-
     return {
-      "zone_id": best_zone["hexagon_id"],
-      "zone_center": zone_center,
-      "zone_corners": zone_corners,
+      "cluster_id": best_zone["start_cluster"],
+      "score": best_zone["expected_total_earnings"],
+      "expected_earnings": best_zone["expected_total_earnings"],
+      "expected_hourly_rate": best_zone["expected_hourly_rate"],
+      "lat": best_zone["start_lat"],
+      "lon": best_zone["start_lon"],
+      "lat_min": best_zone["start_lat_min"],
+      "lat_max": best_zone["start_lat_max"],
+      "lon_min": best_zone["start_lon_min"],
+      "lon_max": best_zone["start_lon_max"],
     }
 
   # AI Agent supporting methods

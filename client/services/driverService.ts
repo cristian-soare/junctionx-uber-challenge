@@ -5,15 +5,9 @@ const DRIVER_ID_KEY = '@driver_id';
 
 export async function getOrCreateDriverId(): Promise<string> {
   try {
-    let driverId = await AsyncStorage.getItem(DRIVER_ID_KEY);
-
-    if (!driverId) {
-      driverId = generateRandomDriverId();
-      await AsyncStorage.setItem(DRIVER_ID_KEY, driverId);
-    }
-
+    const driverId = generateRandomDriverId();
+    await AsyncStorage.setItem(DRIVER_ID_KEY, driverId);
     await registerDriver(driverId);
-
     return driverId;
   } catch (error) {
     console.error('Failed to get/create driver ID:', error);
@@ -22,12 +16,8 @@ export async function getOrCreateDriverId(): Promise<string> {
 }
 
 function generateRandomDriverId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let id = 'driver_';
-  for (let i = 0; i < 8; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
+  const randomNum = Math.floor(Math.random() * 5) + 1;
+  return `driver_${randomNum}`;
 }
 
 async function registerDriver(driverId: string): Promise<void> {

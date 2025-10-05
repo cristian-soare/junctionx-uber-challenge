@@ -88,3 +88,9 @@ class TimeSelectionRequest(BaseModel):
   """Driver time selection."""
 
   time: int = Field(..., ge=0, le=23, description="Selected hour (0-23)")
+
+
+class ZoneSelectionRequest(BaseModel):
+  """Driver zone selection."""
+
+  cluster_id: str = Field(..., description="Selected cluster/zone ID")

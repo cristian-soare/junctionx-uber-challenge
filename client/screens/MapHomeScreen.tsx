@@ -9,7 +9,7 @@ import OptimalDetailsPanel from "../components/OptimalDetailsPanel";
 import SchedulePanel from "../components/SchedulePanel";
 import WellnessNudge from "../components/WellnessNudge";
 import Config from "../config/Config";
-import { getDrivingHours } from "../services/drivingSessionService";
+import { getDrivingHours, startDrivingWithSession, stopDrivingWithSession } from "../services/drivingSessionService";
 import { getOrCreateDriverId } from "../services/driverService";
 
 export default function MapHomeScreen() {
@@ -67,33 +67,16 @@ export default function MapHomeScreen() {
   // ⏱ Track driving time - Count up + sync with backend
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    let hoursTimer: NodeJS.Timeout | null = null;
 
     if (isOnline) {
       // Start counting up from the current value
       timer = setInterval(() => {
         setDrivingSeconds((prev) => prev + 1);
       }, 1000);
-
-      // Fetch hours from backend every 30s
-      hoursTimer = setInterval(async () => {
-        try {
-          const data = await getDrivingHours(Config.DEFAULT_DRIVER_ID);
-          setHoursToday(data.total_hours_today);
-        } catch (error) {
-          console.error("Failed to fetch driving hours:", error);
-        }
-      }, 30000);
-
-      // Fetch immediately when going online
-      getDrivingHours(Config.DEFAULT_DRIVER_ID)
-        .then((data) => setHoursToday(data.total_hours_today))
-        .catch((error) => console.error("Failed to fetch driving hours:", error));
     }
 
     return () => {
       if (timer) clearInterval(timer);
-      if (hoursTimer) clearInterval(hoursTimer);
     };
   }, [isOnline]);
   // Schedule button is always enabled to allow setting multiple preferences
@@ -106,14 +89,14 @@ export default function MapHomeScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  // Calculate progress bar width when optimal time is set (fills up in 60 seconds for demo)
+  // Calculate progress bar width when optimal time is set (fills up in 20 seconds for demo)
   useEffect(() => {
     if (optimalTime && !isOnline && scheduleStartTime) {
-      // Progress fills up in 60 seconds (demo) - smooth and constant
+      // Progress fills up in 20 seconds (demo) - smooth and constant
       const now = Date.now();
       const elapsedMs = now - scheduleStartTime;
       const elapsedSeconds = elapsedMs / 1000;
-      const progress = Math.min(100, (elapsedSeconds / 60) * 100);
+      const progress = Math.min(110, (elapsedSeconds / 20) * 110);
       setProgressWidth(progress);
     } else if (!optimalTime || isOnline) {
       setProgressWidth(0);
@@ -178,19 +161,37 @@ export default function MapHomeScreen() {
             {/* GO/STOP button */}
             <TouchableOpacity
               style={[styles.actionButton, isOnline ? styles.stopButton : styles.goButton]}
-              onPress={() => {
+              onPress={async () => {
                 if (isOnline) {
-                  // STOP: reset to offline and clear schedule
+                  // STOP: stop session and reset to offline
+                  try {
+                    await stopDrivingWithSession(Config.DEFAULT_DRIVER_ID);
+                  } catch (error) {
+                    console.error("Failed to stop driving session:", error);
+                  }
                   setIsOnline(false);
                   setRemainingTime(null);
                   setWellnessNudgeDismissed(true);
                   setOptimalTime(null);
                   setScheduleStartTime(null);
                 } else {
-                  // GO: if scheduled, go directly online; otherwise show dialog
-                  if (optimalTime) {
-                    setIsOnline(true);
+                  // GO: Check if bar is full, if yes go directly, otherwise show dialog
+                  if (optimalTime && progressWidth >= 100) {
+                    // Bar is full (GO GO GO was shown), start session and go online
+                    try {
+                      const currentHour = new Date().getHours();
+                      await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
+                      setDrivingSeconds(0);
+                      setIsOnline(true);
+                      setWellnessNudgeDismissed(true);
+                    } catch (error) {
+                      console.error("Failed to start driving:", error);
+                      setDrivingSeconds(0);
+                      setIsOnline(true);
+                      setWellnessNudgeDismissed(true);
+                    }
                   } else {
+                    // Bar not full or no schedule, show dialog
                     setShowConfirmDialog(true);
                   }
                 }
@@ -214,16 +215,25 @@ export default function MapHomeScreen() {
 
           {/* Status bar */}
           {optimalTime && !isOnline ? (
-            <View style={styles.optimalBar}>
-              <View style={[styles.progressBar, { width: `${progressWidth}%` }]} />
+            progressWidth >= 100 ? (
               <TouchableOpacity
-                style={styles.timeContainer}
-                onPress={() => setIsOptimalDetailsOpen(true)}
-                activeOpacity={0.8}
+                style={styles.goGoGoBar}
+                activeOpacity={1}
               >
-                <Text style={styles.optimalText}>{optimalTime}</Text>
+                <Text style={styles.goGoGoText}>GO GO GO</Text>
               </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={styles.optimalBar}>
+                <View style={[styles.progressBar, { width: `${progressWidth}%` }]} />
+                <TouchableOpacity
+                  style={styles.timeContainer}
+                  onPress={() => setIsOptimalDetailsOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.optimalText}>{optimalTime}</Text>
+                </TouchableOpacity>
+              </View>
+            )
           ) : isOnline ? (
             <View style={styles.statusBarOnline}>
               <Text style={styles.statusTextOnline}>
@@ -274,7 +284,13 @@ export default function MapHomeScreen() {
             <View style={styles.dialogButtons}>
               <TouchableOpacity
                 style={styles.dialogButtonConfirm}
-                onPress={() => {
+                onPress={async () => {
+                  try {
+                    const currentHour = new Date().getHours();
+                    await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
+                  } catch (error) {
+                    console.error("Failed to start driving:", error);
+                  }
                   setIsOnline(true);
                   setShowConfirmDialog(false);
                 }}
@@ -321,8 +337,10 @@ export default function MapHomeScreen() {
           optimalTime={optimalTime}
           optimalTimeHour={optimalTimeHour}
           nrHours={nrHours}
-          onTimeChange={(newTime) => {
+          onTimeChange={(newTime, newHour, newNrHours) => {
             setOptimalTime(newTime);
+            setOptimalTimeHour(newHour);
+            setNrHours(newNrHours);
             setScheduleStartTime(Date.now());
           }}
         />
@@ -574,6 +592,25 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "700",
     color: "#000",
+  },
+  goGoGoBar: {
+    width: "100%",
+    backgroundColor: "#fff",
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 10,
+    minHeight: 90,
+  },
+  goGoGoText: {
+    color: "#FF0000",
+    fontSize: 38,
+    fontWeight: "800",
   },
   dialogOverlay: {
     position: "absolute",

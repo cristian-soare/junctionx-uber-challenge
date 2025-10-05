@@ -73,10 +73,44 @@ export async function stopDrivingSession(
 export async function getDrivingHours(
   driverId: string
 ): Promise<DrivingHoursResponse> {
+  try {
+    const response = await fetch(
+      `${Config.API_BASE_URL}/drivers/${driverId}/driving-hours`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("getDrivingHours error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Start driving - start session and get optimal zone for current time
+ */
+export async function startDrivingWithSession(
+  driverId: string,
+  currentHour: number
+): Promise<any> {
+  // Start the session
+  await startDrivingSession(driverId);
+
+  // Get optimal zone
   const response = await fetch(
-    `${Config.API_BASE_URL}/drivers/${driverId}/driving-hours`,
+    `${Config.API_BASE_URL}/drivers/${driverId}/start-driving?current_time=${currentHour}`,
     {
-      method: "GET",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
@@ -88,4 +122,13 @@ export async function getDrivingHours(
   }
 
   return await response.json();
+}
+
+/**
+ * Stop driving - stop the session
+ */
+export async function stopDrivingWithSession(
+  driverId: string
+): Promise<SessionResponse> {
+  return await stopDrivingSession(driverId);
 }
