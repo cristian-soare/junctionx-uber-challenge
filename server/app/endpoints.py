@@ -785,139 +785,142 @@ async def start_driving(
 
 
 # AI Agent endpoints
-from datetime import datetime
-from typing import List
-from pydantic import BaseModel
-from app.ai_agent import AIAgentService, ChatMessage
+# Temporarily disabled - missing google.generativeai dependency
+# To enable: pip install google-generativeai and uncomment below
 
-ai_agent_service = AIAgentService()
-
-
-class ChatRequest(BaseModel):
-    """Chat request model."""
-    message: str
-    chat_history: List[ChatMessage] = []
-
-
-class ChatResponse(BaseModel):
-    """Chat response model."""
-    response: str
-    timestamp: str
-
-
-class SuggestionsResponse(BaseModel):
-    """Proactive suggestions response model."""
-    suggestions: List[str]
-
-
-@router.post(
-    "/ai/chat/{driver_id}",
-    response_model=ChatResponse,
-    summary="Chat with AI Assistant",
-    description="Send a message to the AI assistant and get driving advice",
-    tags=["ai-agent"],
-)
-async def chat_with_ai(
-    driver_id: str = Path(..., description="Driver ID"),
-    request: ChatRequest = ...,
-) -> ChatResponse:
-    """Chat with the AI assistant for driving advice.
-    
-    Args:
-        driver_id: Driver identifier
-        request: Chat message and history
-        
-    Returns:
-        AI response with timestamp
-        
-    Raises:
-        HTTPException: 500 if AI service fails
-    """
-    try:
-        response_text = await ai_agent_service.chat(
-            driver_id=driver_id,
-            message=request.message,
-            chat_history=request.chat_history
-        )
-        
-        return ChatResponse(
-            response=response_text,
-            timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI chat failed: {str(e)}"
-        ) from e
-
-
-@router.get(
-    "/ai/suggestions/{driver_id}",
-    response_model=SuggestionsResponse,
-    summary="Get proactive suggestions",
-    description="Get AI-generated proactive suggestions based on current conditions",
-    tags=["ai-agent"],
-)
-async def get_proactive_suggestions(
-    driver_id: str = Path(..., description="Driver ID")
-) -> SuggestionsResponse:
-    """Get proactive AI suggestions for the driver.
-    
-    Args:
-        driver_id: Driver identifier
-        
-    Returns:
-        List of proactive suggestions
-        
-    Raises:
-        HTTPException: 500 if AI service fails
-    """
-    try:
-        suggestions = await ai_agent_service.get_proactive_suggestions(driver_id)
-        
-        return SuggestionsResponse(suggestions=suggestions)
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get suggestions: {str(e)}"
-        ) from e
-
-
-@router.get(
-    "/ai/wellness/{driver_id}",
-    summary="Get wellness reminder",
-    description="Get wellness reminder based on driving time",
-    tags=["ai-agent"],
-)
-async def get_wellness_reminder(
-    driver_id: str = Path(..., description="Driver ID"),
-    hours_driven: float = Query(..., description="Number of hours driven", ge=0, le=24)
-) -> dict[str, Any]:
-    """Get wellness reminder based on driving time.
-    
-    Args:
-        driver_id: Driver identifier
-        hours_driven: Number of hours the driver has been driving
-        
-    Returns:
-        Wellness reminder message if applicable
-        
-    Raises:
-        HTTPException: 500 if AI service fails
-    """
-    try:
-        reminder = await ai_agent_service.generate_wellness_reminder(driver_id, hours_driven)
-        
-        return {
-            "wellness_reminder": reminder,
-            "should_take_break": hours_driven >= 4.5,
-            "hours_driven": hours_driven
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get wellness reminder: {str(e)}"
-        ) from e
+# from datetime import datetime
+# from typing import List
+# from pydantic import BaseModel
+# from app.ai_agent import AIAgentService, ChatMessage
+#
+# ai_agent_service = AIAgentService()
+#
+#
+# class ChatRequest(BaseModel):
+#     """Chat request model."""
+#     message: str
+#     chat_history: List[ChatMessage] = []
+#
+#
+# class ChatResponse(BaseModel):
+#     """Chat response model."""
+#     response: str
+#     timestamp: str
+#
+#
+# class SuggestionsResponse(BaseModel):
+#     """Proactive suggestions response model."""
+#     suggestions: List[str]
+#
+#
+# @router.post(
+#     "/ai/chat/{driver_id}",
+#     response_model=ChatResponse,
+#     summary="Chat with AI Assistant",
+#     description="Send a message to the AI assistant and get driving advice",
+#     tags=["ai-agent"],
+# )
+# async def chat_with_ai(
+#     driver_id: str = Path(..., description="Driver ID"),
+#     request: ChatRequest = ...,
+# ) -> ChatResponse:
+#     """Chat with the AI assistant for driving advice.
+#
+#     Args:
+#         driver_id: Driver identifier
+#         request: Chat message and history
+#
+#     Returns:
+#         AI response with timestamp
+#
+#     Raises:
+#         HTTPException: 500 if AI service fails
+#     """
+#     try:
+#         response_text = await ai_agent_service.chat(
+#             driver_id=driver_id,
+#             message=request.message,
+#             chat_history=request.chat_history
+#         )
+#
+#         return ChatResponse(
+#             response=response_text,
+#             timestamp=datetime.now().isoformat()
+#         )
+#
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"AI chat failed: {str(e)}"
+#         ) from e
+#
+#
+# @router.get(
+#     "/ai/suggestions/{driver_id}",
+#     response_model=SuggestionsResponse,
+#     summary="Get proactive suggestions",
+#     description="Get AI-generated proactive suggestions based on current conditions",
+#     tags=["ai-agent"],
+# )
+# async def get_proactive_suggestions(
+#     driver_id: str = Path(..., description="Driver ID")
+# ) -> SuggestionsResponse:
+#     """Get proactive AI suggestions for the driver.
+#
+#     Args:
+#         driver_id: Driver identifier
+#
+#     Returns:
+#         List of proactive suggestions
+#
+#     Raises:
+#         HTTPException: 500 if AI service fails
+#     """
+#     try:
+#         suggestions = await ai_agent_service.get_proactive_suggestions(driver_id)
+#
+#         return SuggestionsResponse(suggestions=suggestions)
+#
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Failed to get suggestions: {str(e)}"
+#         ) from e
+#
+#
+# @router.get(
+#     "/ai/wellness/{driver_id}",
+#     summary="Get wellness reminder",
+#     description="Get wellness reminder based on driving time",
+#     tags=["ai-agent"],
+# )
+# async def get_wellness_reminder(
+#     driver_id: str = Path(..., description="Driver ID"),
+#     hours_driven: float = Query(..., description="Number of hours driven", ge=0, le=24)
+# ) -> dict[str, Any]:
+#     """Get wellness reminder based on driving time.
+#
+#     Args:
+#         driver_id: Driver identifier
+#         hours_driven: Number of hours the driver has been driving
+#
+#     Returns:
+#         Wellness reminder message if applicable
+#
+#     Raises:
+#         HTTPException: 500 if AI service fails
+#     """
+#     try:
+#         reminder = await ai_agent_service.generate_wellness_reminder(driver_id, hours_driven)
+#
+#         return {
+#             "wellness_reminder": reminder,
+#             "should_take_break": hours_driven >= 4.5,
+#             "hours_driven": hours_driven
+#         }
+#
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Failed to get wellness reminder: {str(e)}"
+#         ) from e

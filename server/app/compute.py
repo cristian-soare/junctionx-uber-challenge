@@ -565,7 +565,6 @@ class ComputeService:
 
         cluster_scores.append(
           {
-            "hexagon_id": cluster,
             "cluster_id": cluster,
             "score": expected_earnings,
             "expected_earnings": expected_earnings,
@@ -577,6 +576,7 @@ class ComputeService:
             "lon_min": coords['lon_min'],
             "lon_max": coords['lon_max'],
             "work_hours": work_hours,
+            "remaining_hours": 0, 
             "path_length": len(optimal_path),
           }
         )

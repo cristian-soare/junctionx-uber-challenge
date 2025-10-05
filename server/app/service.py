@@ -667,6 +667,10 @@ class DataService:
     selections = await db_manager.get_driver_selections(driver_id)
     if not selections or selections.get("selected_time") is None:
       raise TimeNotSelectedError
+    
+    preferences = await self.get_working_hours(driver_id)
+    if not preferences:
+      raise DriverPreferencesNotSetError
 
     async with db_manager.get_session() as session:
       stmt = select(Driver).where(Driver.driver_id == driver_id)
@@ -679,7 +683,7 @@ class DataService:
     return await self.compute_service.get_all_zone_scores(
       driver_id=driver_id,
       start_time=selections["selected_time"],
-      remaining_hours=selections["remaining_hours"],
+      work_hours=preferences["nr_hours"],
       city_id=city_id,
     )
 
