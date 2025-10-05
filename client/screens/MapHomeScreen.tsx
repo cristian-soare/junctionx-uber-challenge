@@ -164,11 +164,11 @@ export default function MapHomeScreen() {
               onPress={async () => {
                 if (isOnline) {
                   // STOP: stop session and reset to offline
-                  try {
-                    await stopDrivingWithSession(Config.DEFAULT_DRIVER_ID);
-                  } catch (error) {
-                    console.error("Failed to stop driving session:", error);
-                  }
+                  // try {
+                  //   await stopDrivingWithSession(Config.DEFAULT_DRIVER_ID);
+                  // } catch (error) {
+                  //   console.error("Failed to stop driving session:", error);
+                  // }
                   setIsOnline(false);
                   setRemainingTime(null);
                   setWellnessNudgeDismissed(true);
@@ -178,18 +178,15 @@ export default function MapHomeScreen() {
                   // GO: Check if bar is full, if yes go directly, otherwise show dialog
                   if (optimalTime && progressWidth >= 100) {
                     // Bar is full (GO GO GO was shown), start session and go online
-                    try {
-                      const currentHour = new Date().getHours();
-                      await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
-                      setDrivingSeconds(0);
-                      setIsOnline(true);
-                      setWellnessNudgeDismissed(true);
-                    } catch (error) {
-                      console.error("Failed to start driving:", error);
-                      setDrivingSeconds(0);
-                      setIsOnline(true);
-                      setWellnessNudgeDismissed(true);
-                    }
+                    // try {
+                    //   const currentHour = new Date().getHours();
+                    //   await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
+                    // } catch (error) {
+                    //   console.error("Failed to start driving:", error);
+                    // }
+                    setDrivingSeconds(0);
+                    setIsOnline(true);
+                    setWellnessNudgeDismissed(true);
                   } else {
                     // Bar not full or no schedule, show dialog
                     setShowConfirmDialog(true);
@@ -285,12 +282,12 @@ export default function MapHomeScreen() {
               <TouchableOpacity
                 style={styles.dialogButtonConfirm}
                 onPress={async () => {
-                  try {
-                    const currentHour = new Date().getHours();
-                    await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
-                  } catch (error) {
-                    console.error("Failed to start driving:", error);
-                  }
+                  // try {
+                  //   const currentHour = new Date().getHours();
+                  //   await startDrivingWithSession(Config.DEFAULT_DRIVER_ID, currentHour);
+                  // } catch (error) {
+                  //   console.error("Failed to start driving:", error);
+                  // }
                   setIsOnline(true);
                   setShowConfirmDialog(false);
                 }}
