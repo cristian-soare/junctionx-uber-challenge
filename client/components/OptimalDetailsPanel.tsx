@@ -123,6 +123,26 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
     }
   }, [showTimeDetails, selectedTimeIndex, timeSlots]);
 
+  useEffect(() => {
+    if (showZoneDetails && zoneSlots.length > 0) {
+      const animations = zoneSlots.map((slot, idx) => {
+        const finalHeight = (slot.optimality / 100) * 320 + 80;
+        return Animated.timing(zoneBarHeightsRef.current[idx], {
+          toValue: finalHeight,
+          duration: 500,
+          useNativeDriver: false,
+        });
+      });
+      Animated.stagger(40, animations).start();
+      const targetX = Math.max(0, Math.min(zoneSlots.length - 1, selectedZoneIndex)) * ITEM_WIDTH;
+      setTimeout(() => {
+        zoneScrollViewRef.current?.scrollTo({ x: targetX, animated: true });
+      }, 60);
+    } else if (zoneSlots.length > 0) {
+      zoneSlots.forEach((_, idx) => zoneBarHeightsRef.current[idx]?.setValue(0));
+    }
+  }, [showZoneDetails, selectedZoneIndex, zoneSlots]);
+
   if (!visible) return null;
 
   const handleMomentumScrollEnd = (event: any) => {
@@ -211,26 +231,6 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
       </Modal>
     );
   }
-
-  useEffect(() => {
-    if (showZoneDetails && zoneSlots.length > 0) {
-      const animations = zoneSlots.map((slot, idx) => {
-        const finalHeight = (slot.optimality / 100) * 320 + 80;
-        return Animated.timing(zoneBarHeightsRef.current[idx], {
-          toValue: finalHeight,
-          duration: 500,
-          useNativeDriver: false,
-        });
-      });
-      Animated.stagger(40, animations).start();
-      const targetX = Math.max(0, Math.min(zoneSlots.length - 1, selectedZoneIndex)) * ITEM_WIDTH;
-      setTimeout(() => {
-        zoneScrollViewRef.current?.scrollTo({ x: targetX, animated: true });
-      }, 60);
-    } else if (zoneSlots.length > 0) {
-      zoneSlots.forEach((_, idx) => zoneBarHeightsRef.current[idx]?.setValue(0));
-    }
-  }, [showZoneDetails, selectedZoneIndex, zoneSlots]);
 
   const handleZoneMomentumScrollEnd = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;

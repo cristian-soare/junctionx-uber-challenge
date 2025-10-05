@@ -10,8 +10,9 @@ export async function getOrCreateDriverId(): Promise<string> {
     if (!driverId) {
       driverId = generateRandomDriverId();
       await AsyncStorage.setItem(DRIVER_ID_KEY, driverId);
-      await registerDriver(driverId);
     }
+
+    await registerDriver(driverId);
 
     return driverId;
   } catch (error) {

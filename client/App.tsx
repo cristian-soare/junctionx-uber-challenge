@@ -14,33 +14,6 @@ import Config from "./config/Config";
 const Stack = createNativeStackNavigator();
 
 export default function App() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const initializeDriver = async () => {
-      try {
-        const driverId = await getOrCreateDriverId();
-        Config.DRIVER_ID = driverId;
-        console.log("Driver initialized:", driverId);
-      } catch (error) {
-        console.error("Failed to initialize driver:", error);
-      } finally {
-        setIsReady(true);
-      }
-    };
-
-    initializeDriver();
-  }, []);
-
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#000" />
-        <Text style={{ marginTop: 10 }}>Initializing...</Text>
-      </View>
-    );
-  }
-
   return (
     <NavigationContainer>
       <Stack.Navigator

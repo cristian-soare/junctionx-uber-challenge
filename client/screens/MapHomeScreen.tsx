@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import OptimalDetailsPanel from "../components/OptimalDetailsPanel";
@@ -10,6 +10,7 @@ import SchedulePanel from "../components/SchedulePanel";
 import WellnessNudge from "../components/WellnessNudge";
 import Config from "../config/Config";
 import { getDrivingHours } from "../services/drivingSessionService";
+import { getOrCreateDriverId } from "../services/driverService";
 
 export default function MapHomeScreen() {
   const navigation = useNavigation<any>();
@@ -27,11 +28,26 @@ export default function MapHomeScreen() {
   const [remainingTime, setRemainingTime] = useState<number | null>(null);
   const [wellnessNudgeDismissed, setWellnessNudgeDismissed] = useState(false);
   const [scheduleStartTime, setScheduleStartTime] = useState<number | null>(null);
+  const [isDriverReady, setIsDriverReady] = useState(false);
 
-  // 🧠 Start at 4:29:55 (for testing) - keeping for backwards compatibility
   const [drivingSeconds, setDrivingSeconds] = useState(4 * 3600 + 29 * 60 + 55);
 
-  // 📍 Track location
+  useEffect(() => {
+    const initializeDriver = async () => {
+      try {
+        const driverId = await getOrCreateDriverId();
+        Config.DRIVER_ID = driverId;
+        console.log("Driver initialized:", driverId);
+        setIsDriverReady(true);
+      } catch (error) {
+        console.error("Failed to initialize driver:", error);
+        setIsDriverReady(true);
+      }
+    };
+
+    initializeDriver();
+  }, []);
+
   useEffect(() => {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -121,10 +137,11 @@ export default function MapHomeScreen() {
   //   }
   // }, [isOnline, remainingTime]);
 
-  if (!location)
+  if (!isDriverReady || !location)
     return (
       <View style={styles.loading}>
-        <Text>Loading map...</Text>
+        <ActivityIndicator size="large" color="#000" />
+        <Text style={{ marginTop: 10 }}>Loading...</Text>
       </View>
     );
 
