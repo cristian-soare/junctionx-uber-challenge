@@ -19,6 +19,7 @@ from app.models import (
   Driver,
   DriverPreferences,
   DriverStateHistory,
+  DrivingSession,
   SurgeHistory,
   TripRequestHistory,
   WeatherHistory,
@@ -872,3 +873,157 @@ class DataService:
       return {"conditions": "Unknown"}
     except Exception:
       return {"conditions": "Unknown"}
+
+  async def start_driving_session(self, driver_id: str) -> dict[str, Any]:
+    """Start a new driving session for a driver.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        Session information with session_id and start time.
+
+    """
+    timestamp = datetime.now(UTC)
+
+    async with db_manager.get_session() as session:
+      # End any existing active sessions first
+      stmt = (
+        select(DrivingSession)
+        .where(DrivingSession.driver_id == driver_id)
+        .where(DrivingSession.is_active == True)  # noqa: E712
+      )
+      result = await session.execute(stmt)
+      active_sessions = result.scalars().all()
+
+      for active_session in active_sessions:
+        # Ensure timezone-aware comparison
+        session_start = active_session.session_start
+        if session_start.tzinfo is None:
+          session_start = session_start.replace(tzinfo=UTC)
+
+        duration = (timestamp - session_start).total_seconds() / 3600
+        active_session.session_end = timestamp
+        active_session.hours_driven = duration
+        active_session.is_active = False
+
+      # Create new session
+      new_session = DrivingSession(
+        driver_id=driver_id,
+        session_start=timestamp,
+        is_active=True,
+      )
+      session.add(new_session)
+      await session.commit()
+      await session.refresh(new_session)
+
+      return {
+        "session_id": new_session.id,
+        "driver_id": driver_id,
+        "session_start": timestamp.isoformat(),
+        "status": "active",
+      }
+
+  async def stop_driving_session(self, driver_id: str) -> dict[str, Any]:
+    """Stop the active driving session for a driver.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        Session information with hours driven.
+
+    """
+    timestamp = datetime.now(UTC)
+
+    async with db_manager.get_session() as session:
+      stmt = (
+        select(DrivingSession)
+        .where(DrivingSession.driver_id == driver_id)
+        .where(DrivingSession.is_active == True)  # noqa: E712
+      )
+      result = await session.execute(stmt)
+      active_session = result.scalar_one_or_none()
+
+      if not active_session:
+        return {
+          "driver_id": driver_id,
+          "status": "no_active_session",
+          "hours_driven": 0.0,
+        }
+
+      # Calculate hours driven
+      # Ensure timezone-aware comparison
+      session_start = active_session.session_start
+      if session_start.tzinfo is None:
+        session_start = session_start.replace(tzinfo=UTC)
+
+      duration = (timestamp - session_start).total_seconds() / 3600
+      active_session.session_end = timestamp
+      active_session.hours_driven = duration
+      active_session.is_active = False
+
+      await session.commit()
+
+      return {
+        "session_id": active_session.id,
+        "driver_id": driver_id,
+        "session_start": active_session.session_start.isoformat(),
+        "session_end": timestamp.isoformat(),
+        "hours_driven": round(duration, 2),
+        "status": "stopped",
+      }
+
+  async def get_current_driving_hours(self, driver_id: str) -> dict[str, Any]:
+    """Get current driving hours for a driver.
+
+    Calculates total hours from all sessions today plus current active session if any.
+
+    Args:
+        driver_id: Driver identifier.
+
+    Returns:
+        Driving hours information.
+
+    """
+    now = datetime.now(UTC)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    async with db_manager.get_session() as session:
+      # Get all sessions from today
+      stmt = (
+        select(DrivingSession)
+        .where(DrivingSession.driver_id == driver_id)
+        .where(DrivingSession.session_start >= today_start)
+        .order_by(DrivingSession.session_start.desc())
+      )
+      result = await session.execute(stmt)
+      sessions = result.scalars().all()
+
+      total_hours = 0.0
+      active_session_hours = 0.0
+      has_active_session = False
+
+      for sess in sessions:
+        if sess.is_active:
+          # Calculate current hours for active session
+          # Ensure timezone-aware comparison
+          session_start = sess.session_start
+          if session_start.tzinfo is None:
+            session_start = session_start.replace(tzinfo=UTC)
+
+          active_session_hours = (now - session_start).total_seconds() / 3600
+          total_hours += active_session_hours
+          has_active_session = True
+        elif sess.hours_driven:
+          # Add completed session hours
+          total_hours += sess.hours_driven
+
+      return {
+        "driver_id": driver_id,
+        "total_hours_today": round(total_hours, 2),
+        "active_session_hours": round(active_session_hours, 2) if has_active_session else 0.0,
+        "is_driving": has_active_session,
+        "should_take_break": total_hours >= 4.5,
+        "timestamp": now.isoformat(),
+      }

@@ -1,14 +1,41 @@
 // Environment configuration
+import { Platform } from 'react-native';
+
 const isDevelopment = __DEV__;
 
+// IMPORTANT: If using Expo Go or physical device with tunnel mode,
+// replace with your computer's IP address (run `ipconfig getifaddr en0` on Mac)
+const LOCAL_IP = '172.20.10.2'; // Your computer's IP - use 'localhost' for web/simulator only
+
+// Get the appropriate base URL based on platform
+const getApiBaseUrl = () => {
+  if (!isDevelopment) {
+    return 'https://your-production-server.com/api/v1';
+  }
+
+  // For development
+  if (Platform.OS === 'web') {
+    return `http://${LOCAL_IP}:8000/api/v1`;
+  }
+
+  // For iOS simulator, localhost usually works, but use IP if connecting from physical device
+  if (Platform.OS === 'ios') {
+    return `http://${LOCAL_IP}:8000/api/v1`;
+  }
+
+  // For Android emulator, use 10.0.2.2 instead of localhost (or use physical device IP)
+  if (Platform.OS === 'android') {
+    return `http://${LOCAL_IP}:8000/api/v1`;
+  }
+
+  // Fallback
+  return `http://${LOCAL_IP}:8000/api/v1`;
+};
+
 export const Config = {
-  API_BASE_URL: isDevelopment 
-    ? 'http://145.94.254.100:8000/api/v1'  // Your computer's IP address
-    // ? 'http://10.0.2.2:8000/api/v1'     // Android emulator alternative
-    // ? 'http://localhost:8000/api/v1'     // iOS simulator alternative
-    : 'https://your-production-server.com/api/v1', // Production server
-  
-  DEFAULT_DRIVER_ID: 'driver_123', // In a real app, this would come from authentication
+  API_BASE_URL: getApiBaseUrl(),
+
+  DEFAULT_DRIVER_ID: 'soare', // In a real app, this would come from authentication
   
   // Timeouts
   REQUEST_TIMEOUT: 10000, // 10 seconds

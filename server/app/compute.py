@@ -33,112 +33,6 @@ class ComputeService:
       )
     self.optimizer = ComputeService._optimizer
 
-  async def _predict_optimal_zone(
-    self,
-    driver_id: str,
-    current_coordinate: Coordinate,
-    all_surges: dict[str, float] | None = None,
-  ) -> ZoneRecommendation:
-    """Predict optimal hexagon zone for driver to move to.
-
-    Model considers:
-    - Historical demand patterns per zone
-    - Current active requests
-    - Predicted surge pricing
-    - Distance from current coordinate
-    - Competitor density (other drivers in zone)
-    - Time of day patterns
-    - Weather impact on zone demand
-
-    Args:
-        driver_id: Driver identifier.
-        current_coordinate: Current geographic coordinate.
-        all_surges: Dictionary of surge multipliers per hexagon.
-
-    Returns:
-        ZoneRecommendation object.
-
-    """
-    # TODO: Load ML model and run inference
-    # - Get demand heatmap predictions from CSV/model
-    # - Calculate distance to each zone using current_coordinate
-    # - Consider driver's historical success rate per zone
-
-    best_hex = "89fb0333e75a7e5"
-    best_surge = 1.0
-    if all_surges:
-      for hex_id, surge in all_surges.items():
-        if surge > best_surge:
-          best_hex = hex_id
-          best_surge = surge
-
-    # TODO: Calculate actual distance using current_coordinate
-    predicted_eph = best_surge * 20.0
-    lat, lon = self._get_zone_coordinates(best_hex)
-
-    return ZoneRecommendation(
-      hexagon_id=best_hex,
-      predicted_demand=best_surge,
-      predicted_earnings_per_hour=predicted_eph,
-      distance_km=2.5,  # TODO: Calculate from current_coordinate
-      confidence=0.7,
-      lat=lat,
-      lon=lon,
-    )
-
-  # async def _predict_optimal_zone(
-  #   self,
-  #   driver_id: str,
-  #   current_location: Location,
-  #   all_surges: dict[str, float] | None = None,
-  # ) -> ZoneRecommendation:
-  #   """Predict optimal hexagon zone for driver to move to.
-
-  #   Model considers:
-  #   - Historical demand patterns per zone
-  #   - Current active requests
-  #   - Predicted surge pricing
-  #   - Distance from current location
-  #   - Competitor density (other drivers in zone)
-  #   - Time of day patterns
-  #   - Weather impact on zone demand
-
-  #   Args:
-  #       driver_id: Driver identifier.
-  #       current_location: Current geographic location with city.
-  #       all_surges: Dictionary of surge multipliers per hexagon.
-
-  #   Returns:
-  #       ZoneRecommendation object.
-
-  #   """
-  #   # TODO: Load ML model and run inference
-  #   # - Get demand heatmap predictions from CSV/model
-  #   # - Calculate distance to each zone using current_location
-  #   # - Consider driver's historical success rate per zone
-
-  #   best_hex = "89fb0333e75a7e5"
-  #   best_surge = 1.0
-  #   if all_surges:
-  #     for hex_id, surge in all_surges.items():
-  #       if surge > best_surge:
-  #         best_hex = hex_id
-  #         best_surge = surge
-
-  #   # TODO: Calculate actual distance using current_location
-  #   predicted_eph = best_surge * 20.0
-  #   coords = self._get_zone_coordinates(best_hex)
-
-  #   return ZoneRecommendation(
-  #     hexagon_id=best_hex,
-  #     predicted_demand=best_surge,
-  #     predicted_earnings_per_hour=predicted_eph,
-  #     distance_km=2.5,  # TODO: Calculate from current_location
-  #     confidence=0.7,
-  #     lat=coords['lat_avg'],
-  #     lon=coords['lon_avg'],
-  #   )
-
   async def process_trip_request(self, trip_request: Any) -> dict[str, Any]:
     """Process trip request (legacy method - keeping for compatibility).
 
@@ -723,7 +617,7 @@ class ComputeService:
     # Load cluster coordinates from CSV if not already loaded
     if not hasattr(self, '_cluster_coords'):
       try:
-        coords_df = pd.read_csv('/app/data/cluster_coordinates_stats.csv')
+        coords_df = pd.read_csv('data/cluster_coordinates_stats.csv')
         self._cluster_coords = {}
         for _, row in coords_df.iterrows():
           self._cluster_coords[row['cluster']] = {

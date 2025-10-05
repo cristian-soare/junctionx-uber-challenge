@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +14,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Config from "../config/Config";
+import { sendChatMessage } from "../services/aiService";
 
 export default function CopilotScreen() {
   const navigation = useNavigation<any>();
@@ -27,17 +30,47 @@ export default function CopilotScreen() {
     if (!input.trim()) return;
     const userMessage = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput("");
     setLoading(true);
 
     try {
-      // TODO: 🔌 Integrate with your backend (ai/flows/chat.ts)
-      // For now, use mock data
-      const response =
-        "🚗 Based on your current schedule, this might be a good time for a short break!";
-      setMessages((prev) => [...prev, { role: "model", content: response }]);
+      // Prepare chat history for the API (exclude the message we just added)
+      const chatHistory = messages.map((msg) => ({
+        role: (msg.role === "model" ? "assistant" : "user") as "user" | "assistant",
+        content: msg.content,
+      }));
+
+      // Call the AI chat endpoint via service
+      const data = await sendChatMessage(
+        Config.DEFAULT_DRIVER_ID,
+        currentInput,
+        chatHistory
+      );
+
+      // Add AI response to messages
+      setMessages((prev) => [
+        ...prev,
+        { role: "model", content: data.response },
+      ]);
     } catch (e) {
-      console.error(e);
+      console.error("Chat error:", e);
+
+      // Show error message to user
+      Alert.alert(
+        "Connection Error",
+        "Unable to reach AI assistant. Please check your connection and try again."
+      );
+
+      // Add error message to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "model",
+          content:
+            "Sorry, I'm having trouble connecting right now. Please try again in a moment.",
+        },
+      ]);
     } finally {
       setLoading(false);
     }

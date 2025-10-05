@@ -100,3 +100,16 @@ class DriverPreferences(Base):
   latest_start_time: Mapped[str] = mapped_column(String(5), nullable=False)
   nr_hours: Mapped[int] = mapped_column(Integer, nullable=False)
   updated_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
+
+
+class DrivingSession(Base):
+  """Track driver's active driving sessions for hours calculation."""
+
+  __tablename__ = "driving_sessions"
+
+  id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+  driver_id: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+  session_start: Mapped[datetime] = mapped_column(nullable=False, index=True)
+  session_end: Mapped[datetime | None] = mapped_column(nullable=True)
+  hours_driven: Mapped[float | None] = mapped_column(Float, nullable=True)
+  is_active: Mapped[bool] = mapped_column(nullable=False, default=True)

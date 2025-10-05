@@ -209,7 +209,7 @@ Current Context:
     async def generate_wellness_reminder(self, driver_id: str, hours_driven: float) -> Optional[str]:
         """Generate a wellness reminder based on driving time."""
         
-        if hours_driven >= 4.5:
+        if hours_driven >= 0.05:
             driver_context = await self.get_driver_context(driver_id)
             driver_name = "Driver"
             

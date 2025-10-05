@@ -206,7 +206,7 @@ def cluster_pickups_and_dropoffs_by_city(
 
 if __name__ == "__main__":
     # Example usage
-    trips = pd.read_csv(Path("/app/data/ride_trips.csv"), low_memory=False)
+    trips = pd.read_csv(Path("data/ride_trips.csv"), low_memory=False)
 
     labeled, plots = cluster_pickups_and_dropoffs_by_city(
         trips,
@@ -217,11 +217,11 @@ if __name__ == "__main__":
         dlon_col="drop_lon",
         eps_m=250,  # adjust to your city scale
         min_samples=10,  # lower if you want smaller clusters
-        save_dir=Path("/app/data/city_cluster_plots"),  # folder with per-city PNGs
+        save_dir=Path("data/city_cluster_plots"),  # folder with per-city PNGs
     )
 
     # Save results
-    labeled.to_csv("/app/data/ride_trips_with_clusters.csv", index=False)
+    labeled.to_csv("data/ride_trips_with_clusters.csv", index=False)
     print(f"Clustering complete. Plots saved: {plots}")
     print(f"\nFirst few rows with cluster labels:")
     print(labeled[["pickup_cluster", "dropoff_cluster"]].head())

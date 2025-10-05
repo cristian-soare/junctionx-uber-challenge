@@ -1,7 +1,8 @@
-import { useNavigation } from "@react-navigation/native";
 import React, { useState, useEffect, useRef } from "react";
-import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, PanResponder } from "react-native";
+import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, PanResponder, Alert } from "react-native";
 import Slider from "@react-native-community/slider";
+import Config from "../config/Config";
+import { saveWorkingHours, getOptimalTime } from "../services/preferencesService";
 
 interface SchedulePanelProps {
   visible: boolean;
@@ -10,7 +11,7 @@ interface SchedulePanelProps {
 }
 
 const TIME_SLOTS = [
-  "12:00", "01:00", "02:00", "03:00", "04:00", "05:00",
+  "00:01", "01:00", "02:00", "03:00", "04:00", "05:00",
   "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
   "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
   "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
@@ -19,10 +20,10 @@ const TIME_SLOTS = [
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 export default function SchedulePanel({ visible, onClose, onSchedule }: SchedulePanelProps) {
-  const navigation = useNavigation<any>();
   const [startIndex, setStartIndex] = useState<number | null>(null);
   const [endIndex, setEndIndex] = useState<number | null>(null);
-  const [hours, setHours] = useState(0);
+  const [hours, setHours] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
       // Reset selections when closing
       setStartIndex(null);
       setEndIndex(null);
-      setHours(0);
+      setHours(1);
     }
   }, [visible]);
 
@@ -184,9 +185,9 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
             <Text style={styles.label}>Driving hours: {hours}h</Text>
             <Slider
               style={styles.slider}
-              minimumValue={0}
-              maximumValue={8}
-              step={0.5}
+              minimumValue={1}
+              maximumValue={24}
+              step={1}
               value={hours}
               onValueChange={setHours}
               minimumTrackTintColor="#000"
@@ -194,26 +195,47 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
               thumbTintColor="#000"
             />
             <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabel}>0h</Text>
-              <Text style={styles.sliderLabel}>8h</Text>
+              <Text style={styles.sliderLabel}>1h</Text>
+              <Text style={styles.sliderLabel}>24h</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={[
               styles.continueButton,
-              (startIndex === null || endIndex === null || hours === 0) && styles.continueButtonDisabled,
+              (startIndex === null || endIndex === null || isLoading) && styles.continueButtonDisabled,
             ]}
-            onPress={() => {
-              if (startIndex !== null && endIndex !== null && hours > 0) {
-                // Hard-coded optimal time for now
-                onSchedule("12:00");
+            onPress={async () => {
+              if (startIndex !== null && endIndex !== null && !isLoading) {
+                try {
+                  setIsLoading(true);
+
+                  // Save preferences to backend
+                  await saveWorkingHours(Config.DEFAULT_DRIVER_ID, {
+                    earliest_start_time: TIME_SLOTS[startIndex],
+                    latest_start_time: TIME_SLOTS[endIndex],
+                    nr_hours: Math.round(hours), // Ensure integer value
+                  });
+
+                  // Get optimal time recommendation
+                  const optimalResponse = await getOptimalTime(Config.DEFAULT_DRIVER_ID);
+
+                  // Pass the optimal time to parent
+                  onSchedule(optimalResponse.optimal_time);
+                } catch (error) {
+                  console.error("Failed to save preferences:", error);
+                  Alert.alert("Error", "Failed to save preferences. Please try again.");
+                } finally {
+                  setIsLoading(false);
+                }
               }
             }}
-            disabled={startIndex === null || endIndex === null || hours === 0}
+            disabled={startIndex === null || endIndex === null || isLoading}
             activeOpacity={0.8}
           >
-            <Text style={styles.continueText}>Get Recommendations</Text>
+            <Text style={styles.continueText}>
+              {isLoading ? "Loading..." : "Get Recommendations"}
+            </Text>
           </TouchableOpacity>
         </View>
           </View>

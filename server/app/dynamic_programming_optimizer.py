@@ -122,7 +122,7 @@ class MobilityOptimizer:
     self.graphs = build_city_graphs(rides)
 
     print("Loading surge pricing data...")
-    self.surge_data = pd.read_csv("/app/data/surge_by_hour.csv")
+    self.surge_data = pd.read_csv("data/surge_by_hour.csv")
     # Create surge lookup: (city_id, hour) -> multiplier
     self.surge_lookup = {}
     for _, row in self.surge_data.iterrows():

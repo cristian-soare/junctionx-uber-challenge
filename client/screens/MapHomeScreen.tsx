@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DriverStatus from "../components/DriverStatus";
@@ -18,8 +18,6 @@ export default function MapHomeScreen() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isOptimalDetailsOpen, setIsOptimalDetailsOpen] = useState(false);
   const [optimalTime, setOptimalTime] = useState<string | null>(null);
-  const [isScheduleDisabled, setIsScheduleDisabled] = useState(false);
-  const [scheduleUnlockTime, setScheduleUnlockTime] = useState<number | null>(null);
   const [earnings, setEarnings] = useState(247.50);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [progressWidth, setProgressWidth] = useState(0);
@@ -27,7 +25,7 @@ export default function MapHomeScreen() {
   const [wellnessNudgeDismissed, setWellnessNudgeDismissed] = useState(false);
   const [scheduleStartTime, setScheduleStartTime] = useState<number | null>(null);
 
-  // 🧠 Start at 4:29:55 (for testing)
+  // 🧠 Start at 4:29:55 (for testing) - keeping for backwards compatibility
   const [drivingSeconds, setDrivingSeconds] = useState(4 * 3600 + 29 * 60 + 55);
 
   // 📍 Track location
@@ -46,28 +44,39 @@ export default function MapHomeScreen() {
     })();
   }, []);
 
-  // ⏱ Track driving time
+  // ⏱ Track driving time - Update hours from server periodically
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
+    let hoursTimer: NodeJS.Timeout | null = null;
 
     if (isOnline) {
       timer = setInterval(() => {
         setDrivingSeconds((prev) => prev + 1);
       }, 1000);
+
+      // Fetch hours from server every 30 seconds
+      hoursTimer = setInterval(async () => {
+        try {
+          const data = await getDrivingHours(Config.DEFAULT_DRIVER_ID);
+          setHoursToday(data.total_hours_today);
+        } catch (error) {
+          console.error("Failed to fetch driving hours:", error);
+        }
+      }, 30000);
+
+      // Fetch immediately when going online
+      getDrivingHours(Config.DEFAULT_DRIVER_ID)
+        .then((data) => setHoursToday(data.total_hours_today))
+        .catch((error) => console.error("Failed to fetch driving hours:", error));
     }
 
     return () => {
       if (timer) clearInterval(timer);
+      if (hoursTimer) clearInterval(hoursTimer);
     };
   }, [isOnline]);
 
-  // Check if schedule button should be re-enabled
-  useEffect(() => {
-    if (scheduleUnlockTime && Date.now() >= scheduleUnlockTime) {
-      setIsScheduleDisabled(false);
-      setScheduleUnlockTime(null);
-    }
-  }, [scheduleUnlockTime]);
+  // Schedule button is always enabled to allow setting multiple preferences
 
   // Update current time every second
   useEffect(() => {
@@ -155,8 +164,6 @@ export default function MapHomeScreen() {
                   setRemainingTime(null);
                   setWellnessNudgeDismissed(true);
                   setOptimalTime(null);
-                  setIsScheduleDisabled(false);
-                  setScheduleUnlockTime(null);
                   setScheduleStartTime(null);
                 } else {
                   // GO: if scheduled, go directly online; otherwise show dialog
@@ -178,10 +185,8 @@ export default function MapHomeScreen() {
               style={[
                 styles.actionButton,
                 styles.scheduleActionButton,
-                isScheduleDisabled && styles.scheduleButtonDisabled,
               ]}
               onPress={() => setIsScheduleOpen(true)}
-              disabled={isScheduleDisabled}
             >
               <View style={styles.actionButtonInner}>
                 <Ionicons name="calendar-outline" size={28} color="#fff" />
@@ -251,14 +256,12 @@ export default function MapHomeScreen() {
         onSchedule={(time) => {
           setOptimalTime(time);
           setIsScheduleOpen(false);
-          setIsScheduleDisabled(true);
-          setScheduleUnlockTime(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
           setScheduleStartTime(Date.now()); // Track start time for smooth animation
         }}
       />
 
       {/* 🚨 Wellness Nudge */}
-      <WellnessNudge
+      {/* <WellnessNudge
         drivingSeconds={drivingSeconds}
         onOpenCopilot={() => navigation.navigate("Copilot")}
         isDismissed={wellnessNudgeDismissed}
