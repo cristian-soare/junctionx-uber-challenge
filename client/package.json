@@ -19,6 +19,7 @@
   "dependencies": {
     "@expo/ngrok": "^4.1.0",
     "@gorhom/bottom-sheet": "^5.2.6",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/slider": "^5.0.1",
     "@react-navigation/native": "^7.1.17",

@@ -1,5 +1,5 @@
 import Config from "../config/Config";
-import { WorkingHoursRequest, OptimalTimeResponse, TimeScoresResponse, BestZoneResponse } from "../models/api";
+import { WorkingHoursRequest, OptimalTimeResponse, TimeScoresResponse, BestZoneResponse, ZoneScoresResponse } from "../models/api";
 
 export async function saveWorkingHours(
   driverId: string,
@@ -108,6 +108,30 @@ export async function getBestZone(
   console.log("getBestZone status:", response.status);
   const responseText = await response.text();
   console.log("getBestZone response:", responseText);
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
+  }
+
+  return JSON.parse(responseText);
+}
+
+export async function getZoneScores(
+  driverId: string
+): Promise<ZoneScoresResponse> {
+  const url = `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/zone-scores`;
+  console.log("getZoneScores URL:", url);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  console.log("getZoneScores status:", response.status);
+  const responseText = await response.text();
+  console.log("getZoneScores response:", responseText);
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);

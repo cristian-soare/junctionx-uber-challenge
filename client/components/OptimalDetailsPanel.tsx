@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, ScrollView } from "react-native";
-import { getTimeScores, getBestZone } from "../services/preferencesService";
-import { TimeScore, BestZoneResponse } from "../models/api";
+import { getTimeScores, getBestZone, getZoneScores } from "../services/preferencesService";
+import { TimeScore, BestZoneResponse, ZoneScore } from "../models/api";
 import { hourToTimeString, timeStringToHour } from "../models/api";
 import Config from "../config/Config";
 
@@ -25,11 +25,15 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const [timeSlots, setTimeSlots] = useState<Array<{id: string, timeShort: string, timeFull: string, optimality: number, hour: number}>>([]);
+  const [zoneSlots, setZoneSlots] = useState<Array<{id: string, zoneShort: string, zoneFull: string, optimality: number, zoneIndex: number}>>([]);
   const [bestZone, setBestZone] = useState<BestZoneResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedZoneIndex, setSelectedZoneIndex] = useState(0);
 
   const barHeightsRef = useRef<Animated.Value[]>([]);
+  const zoneBarHeightsRef = useRef<Animated.Value[]>([]);
   const paddingSide = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
+  const zoneScrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (visible) {
@@ -53,11 +57,18 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
     }
   }, [visible]);
 
+  const parseZoneId = (clusterId: string, index: number): string => {
+    return `Z${index + 1}`;
+  };
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
 
-      const timeScoresResponse = await getTimeScores(Config.DEFAULT_DRIVER_ID);
+      const [timeScoresResponse, zoneScoresResponse] = await Promise.all([
+        getTimeScores(Config.DEFAULT_DRIVER_ID),
+        getZoneScores(Config.DEFAULT_DRIVER_ID)
+      ]);
 
       const bestZoneResponse = optimalTimeHour !== null
         ? await getBestZone(Config.DEFAULT_DRIVER_ID, optimalTimeHour)
@@ -71,9 +82,20 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
         hour: score.time
       }));
 
+      const maxZoneScore = Math.max(...zoneScoresResponse.zones.map(z => z.score), 1);
+      const zones = zoneScoresResponse.zones.map((zone: ZoneScore, index: number) => ({
+        id: `zone-${zone.cluster_id}`,
+        zoneShort: parseZoneId(zone.cluster_id, index),
+        zoneFull: zone.cluster_id,
+        optimality: Math.round((zone.score / maxZoneScore) * 100),
+        zoneIndex: index
+      }));
+
       setTimeSlots(slots);
+      setZoneSlots(zones);
       setBestZone(bestZoneResponse);
       barHeightsRef.current = slots.map(() => new Animated.Value(0));
+      zoneBarHeightsRef.current = zones.map(() => new Animated.Value(0));
     } catch (error) {
       console.error("Failed to fetch optimal details:", error);
     } finally {
@@ -190,6 +212,36 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
     );
   }
 
+  useEffect(() => {
+    if (showZoneDetails && zoneSlots.length > 0) {
+      const animations = zoneSlots.map((slot, idx) => {
+        const finalHeight = (slot.optimality / 100) * 320 + 80;
+        return Animated.timing(zoneBarHeightsRef.current[idx], {
+          toValue: finalHeight,
+          duration: 500,
+          useNativeDriver: false,
+        });
+      });
+      Animated.stagger(40, animations).start();
+      const targetX = Math.max(0, Math.min(zoneSlots.length - 1, selectedZoneIndex)) * ITEM_WIDTH;
+      setTimeout(() => {
+        zoneScrollViewRef.current?.scrollTo({ x: targetX, animated: true });
+      }, 60);
+    } else if (zoneSlots.length > 0) {
+      zoneSlots.forEach((_, idx) => zoneBarHeightsRef.current[idx]?.setValue(0));
+    }
+  }, [showZoneDetails, selectedZoneIndex, zoneSlots]);
+
+  const handleZoneMomentumScrollEnd = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.max(0, Math.min(zoneSlots.length - 1, Math.round(offsetX / ITEM_WIDTH)));
+    setSelectedZoneIndex(index);
+  };
+
+  const handleConfirmZone = () => {
+    setShowZoneDetails(false);
+  };
+
   if (showZoneDetails) {
     return (
       <Modal visible={true} animationType="none" transparent>
@@ -201,8 +253,61 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, opt
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.detailTitle}>Zone Details</Text>
-            {/* TODO: Add zone details content */}
+            <Text style={styles.detailTitle}>Select Optimal Zone</Text>
+
+            <View style={styles.chartContainer}>
+              <ScrollView
+                ref={zoneScrollViewRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={ITEM_WIDTH}
+                snapToAlignment="center"
+                decelerationRate="normal"
+                contentContainerStyle={[styles.scrollContent, { paddingHorizontal: paddingSide }]}
+                onMomentumScrollEnd={handleZoneMomentumScrollEnd}
+                scrollEventThrottle={16}
+              >
+                {zoneSlots.length > 0 ? zoneSlots.map((slot, index) => {
+                  const isSelected = index === selectedZoneIndex;
+                  const animatedHeight = zoneBarHeightsRef.current[index];
+                  const barColor = slot.optimality > 66 ? "#34C759" : slot.optimality > 33 ? "#FF9500" : "#E0E0E0";
+
+                  return (
+                    <View key={slot.id} style={styles.barItem}>
+                      <Text style={[styles.hoursLabel, isSelected && styles.hoursLabelSelected]}>
+                        {slot.zoneFull}
+                      </Text>
+                      <Text style={styles.percentLabel}>{slot.optimality}%</Text>
+
+                      <Animated.View
+                        style={[
+                          styles.bar,
+                          {
+                            height: animatedHeight,
+                            backgroundColor: isSelected ? "#007AFF" : barColor,
+                          },
+                          isSelected && styles.barSelected,
+                        ]}
+                      />
+                      <Text style={[styles.timeLabel, isSelected && styles.timeLabelSelected]}>
+                        {slot.zoneShort}
+                      </Text>
+                    </View>
+                  );
+                }) : (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Loading...</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleConfirmZone}
+            >
+              <Text style={styles.confirmButtonText}>Confirm Zone</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

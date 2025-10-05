@@ -1,41 +1,40 @@
-// Environment configuration
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 const isDevelopment = __DEV__;
 
-// IMPORTANT: If using Expo Go or physical device with tunnel mode,
-// replace with your computer's IP address (run `ipconfig getifaddr en0` on Mac)
-const LOCAL_IP = '145.94.141.23'; // Your computer's IP - use 'localhost' for web/simulator only
-
-// Get the appropriate base URL based on platform
 const getApiBaseUrl = () => {
   if (!isDevelopment) {
     return 'https://your-production-server.com/api/v1';
   }
 
-  // For development
-  if (Platform.OS === 'web') {
-    return `http://${LOCAL_IP}:8000/api/v1`;
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const host = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
+
+  console.log('🔍 Expo hostUri:', debuggerHost);
+  console.log('🔍 Detected host:', host);
+
+  if (Platform.OS === 'android' && host === 'localhost') {
+    const url = 'http://10.0.2.2:8000/api/v1';
+    console.log('🌐 API URL (Android emulator):', url);
+    return url;
   }
 
-  // For iOS simulator, localhost usually works, but use IP if connecting from physical device
-  if (Platform.OS === 'ios') {
-    return `http://${LOCAL_IP}:8000/api/v1`;
-  }
-
-  // For Android emulator, use 10.0.2.2 instead of localhost (or use physical device IP)
-  if (Platform.OS === 'android') {
-    return `http://${LOCAL_IP}:8000/api/v1`;
-  }
-
-  // Fallback
-  return `http://${LOCAL_IP}:8000/api/v1`;
+  const url = `http://${host}:8000/api/v1`;
+  console.log('🌐 API URL:', url);
+  return url;
 };
 
 export const Config = {
   API_BASE_URL: getApiBaseUrl(),
 
-  DEFAULT_DRIVER_ID: 'soare', // In a real app, this would come from authentication
+  DRIVER_ID: null as string | null,
+  get DEFAULT_DRIVER_ID(): string {
+    if (!this.DRIVER_ID) {
+      throw new Error("Driver ID not initialized");
+    }
+    return this.DRIVER_ID;
+  }, // In a real app, this would come from authentication
   
   // Timeouts
   REQUEST_TIMEOUT: 10000, // 10 seconds
