@@ -271,6 +271,11 @@ export default function MapHomeScreen() {
           visible={isOptimalDetailsOpen}
           onClose={() => setIsOptimalDetailsOpen(false)}
           optimalTime={optimalTime}
+          onTimeChange={(newTime) => {
+            setOptimalTime(newTime);
+            // Reset progress when time changes
+            setScheduleStartTime(Date.now());
+          }}
         />
       )}
     </SafeAreaView>

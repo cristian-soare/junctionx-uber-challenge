@@ -1,22 +1,44 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions } from "react-native";
+import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, ScrollView } from "react-native";
 
 interface OptimalDetailsPanelProps {
   visible: boolean;
   onClose: () => void;
   optimalTime: string;
+  onTimeChange: (newTime: string) => void;
 }
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const ITEM_WIDTH = 50;
 
-export default function OptimalDetailsPanel({ visible, onClose, optimalTime }: OptimalDetailsPanelProps) {
+const generateTimeSlots = () => {
+  const slots = [];
+  for (let hour = 9; hour < 17; hour++) {
+    const actualHour = hour % 24;
+    const timeShort = `${String(actualHour).padStart(2, '0')}`; // For bar chart
+    const timeFull = `${String(actualHour).padStart(2, '0')}:00`; // For display after selection
+    const optimality = Math.round(Math.random() * 100);
+    const id = `slot-${actualHour}`;
+    slots.push({ id, timeShort, timeFull, optimality, hour: actualHour });
+  }
+  return slots;
+};
+
+const timeSlots = generateTimeSlots();
+
+export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onTimeChange }: OptimalDetailsPanelProps) {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const [showTimeDetails, setShowTimeDetails] = useState(false);
   const [showZoneDetails, setShowZoneDetails] = useState(false);
+  const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const barHeightsRef = useRef(timeSlots.map(() => new Animated.Value(0))).current;
+  const paddingSide = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
 
   useEffect(() => {
     if (visible) {
-      // Reset to bottom before animating up
       slideAnim.setValue(SCREEN_HEIGHT);
       Animated.spring(slideAnim, {
         toValue: 0,
@@ -30,13 +52,44 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime }: O
         duration: 300,
         useNativeDriver: true,
       }).start();
-      // Reset when closing
       setShowTimeDetails(false);
       setShowZoneDetails(false);
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (showTimeDetails) {
+      const animations = timeSlots.map((slot, idx) => {
+        const finalHeight = (slot.optimality / 100) * 320 + 80;
+        return Animated.timing(barHeightsRef[idx], {
+          toValue: finalHeight,
+          duration: 500,
+          useNativeDriver: false,
+        });
+      });
+      Animated.stagger(40, animations).start();
+      const targetX = Math.max(0, Math.min(timeSlots.length - 1, selectedTimeIndex)) * ITEM_WIDTH;
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ x: targetX, animated: true });
+      }, 60);
+    } else {
+      timeSlots.forEach((_, idx) => barHeightsRef[idx].setValue(0));
+    }
+  }, [showTimeDetails, selectedTimeIndex]);
+
   if (!visible) return null;
+
+  const handleMomentumScrollEnd = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.max(0, Math.min(timeSlots.length - 1, Math.round(offsetX / ITEM_WIDTH)));
+    setSelectedTimeIndex(index);
+  };
+
+  const handleConfirmTime = () => {
+    const newTime = timeSlots[selectedTimeIndex]?.timeFull ?? optimalTime;
+    onTimeChange(newTime);
+    setShowTimeDetails(false);
+  };
 
   if (showTimeDetails) {
     return (
@@ -49,8 +102,60 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime }: O
             >
               <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-            <Text style={styles.detailTitle}>Time Details</Text>
-            {/* TODO: Add time details content */}
+            <Text style={styles.detailTitle}>Select Optimal Time</Text>
+
+            {/* Bar Chart Time Selector */}
+            <View style={styles.chartContainer}>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={ITEM_WIDTH}
+                snapToAlignment="center"
+                decelerationRate="normal" // smoother deceleration
+                contentContainerStyle={[styles.scrollContent, { paddingHorizontal: paddingSide }]}
+                onMomentumScrollEnd={handleMomentumScrollEnd}
+                scrollEventThrottle={16}
+              >
+                {timeSlots.map((slot, index) => {
+                  const isSelected = index === selectedTimeIndex;
+                  const animatedHeight = barHeightsRef[index];
+                  const barColor = slot.optimality > 66 ? "#34C759" : slot.optimality > 33 ? "#FF9500" : "#E0E0E0";
+
+                  return (
+                    <View key={slot.id} style={styles.barItem}>
+                      <Text style={[styles.hoursLabel, isSelected && styles.hoursLabelSelected]}>
+                        {slot.timeFull}
+                      </Text>
+                      <Text style={styles.percentLabel}>{slot.optimality}%</Text>
+
+                      <Animated.View
+                        style={[
+                          styles.bar,
+                          {
+                            height: animatedHeight,
+                            backgroundColor: isSelected ? "#007AFF" : barColor,
+                          },
+                          isSelected && styles.barSelected,
+                        ]}
+                      />
+                      <Text style={[styles.timeLabel, isSelected && styles.timeLabelSelected]}>
+                        {slot.timeShort}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {/* center indicator removed */}
+            </View>
+
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleConfirmTime}
+            >
+              <Text style={styles.confirmButtonText}>Confirm Time</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -160,15 +265,85 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
   },
+  chartContainer: {
+    flex: 1,
+    marginTop: 40,
+    position: "relative",
+  },
+  scrollContent: {
+    alignItems: "flex-end",
+    paddingBottom: 20,
+  },
+  barItem: {
+    width: ITEM_WIDTH,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  hoursLabel: {
+    // larger and more visible
+    fontSize: 12,
+    color: "#000",
+    fontWeight: "700",
+    marginBottom: 6,
+    // subtle shadow to increase legibility
+    textShadowColor: "rgba(0,0,0,0.12)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  hoursLabelSelected: {
+    color: "#000",
+    fontWeight: "800",
+  },
+  percentLabel: {
+    fontSize: 13,
+    color: "#000",
+    fontWeight: "700",
+    marginBottom: 8,
+    textShadowColor: "rgba(0,0,0,0.12)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  bar: {
+    // slightly wider and keep rounded top
+    width: 44, // was 40
+    borderRadius: 10,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+  },
+  barSelected: {
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  timeLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#999",
+    marginTop: 10,
+  },
+  timeLabelSelected: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000",
+  },
+
+  confirmButton: {
+    backgroundColor: "#000",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  confirmButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 17,
+  },
   timeContainer: {
     marginBottom: 30,
     alignItems: "center",
-  },
-  timeLabel: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
-    marginBottom: 12,
   },
   timeBox: {
     backgroundColor: "#fff",
