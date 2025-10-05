@@ -1,6 +1,0 @@
-factor,correlation_with_eph,p_value,significant,sample_size,factor_mean,strength
-duration_mins,-0.6695,0.0,True,2872,24.641,Moderate
-uber_fee,0.5563,0.0,True,2939,3.004,Moderate
-fare_amount,0.5562,0.0,True,2939,12.018,Moderate
-distance_km,0.4728,0.0,True,2887,6.151,Moderate
-surge_multiplier,0.1207,0.0,True,2888,1.155,Weak
