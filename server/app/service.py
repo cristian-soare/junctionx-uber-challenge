@@ -716,15 +716,11 @@ class DataService:
 
     if current_time is not None:
       if end_hour < start_hour:
-        if current_time >= start_hour:
-          remaining_hours = 24 - current_time + end_hour
-        else:
-          remaining_hours = end_hour - current_time
+        if not (current_time >= start_hour or current_time <= end_hour):
+          raise CurrentTimeOutsideWorkingHoursError
       else:
-        remaining_hours = end_hour - current_time
-
-      if remaining_hours <= 0:
-        raise CurrentTimeOutsideWorkingHoursError
+        if not (start_hour <= current_time <= end_hour):
+          raise CurrentTimeOutsideWorkingHoursError
 
       time_to_use = current_time
     else:
@@ -733,12 +729,11 @@ class DataService:
         raise TimeNotSelectedAndNoCurrentTimeError()
 
       time_to_use = selections["selected_time"]
-      remaining_hours = selections["remaining_hours"]
 
     return await self.compute_service.get_best_zone_for_time(
       driver_id=driver_id,
       start_time=time_to_use,
-      remaining_hours=remaining_hours,
+      remaining_hours=preferences["nr_hours"],
       city_id=city_id,
     )
 

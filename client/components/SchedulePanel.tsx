@@ -3,11 +3,12 @@ import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, 
 import Slider from "@react-native-community/slider";
 import Config from "../config/Config";
 import { saveWorkingHours, getOptimalTime } from "../services/preferencesService";
+import { hourToTimeString } from "../models/api";
 
 interface SchedulePanelProps {
   visible: boolean;
   onClose: () => void;
-  onSchedule: (optimalTime: string) => void;
+  onSchedule: (optimalTime: string, optimalTimeHour: number, nrHours: number) => void;
 }
 
 const TIME_SLOTS = [
@@ -217,11 +218,10 @@ export default function SchedulePanel({ visible, onClose, onSchedule }: Schedule
                     nr_hours: Math.round(hours), // Ensure integer value
                   });
 
-                  // Get optimal time recommendation
                   const optimalResponse = await getOptimalTime(Config.DEFAULT_DRIVER_ID);
+                  const optimalTimeString = hourToTimeString(optimalResponse.optimal_time);
 
-                  // Pass the optimal time to parent
-                  onSchedule(optimalResponse.optimal_time);
+                  onSchedule(optimalTimeString, optimalResponse.optimal_time, Math.round(hours));
                 } catch (error) {
                   console.error("Failed to save preferences:", error);
                   Alert.alert("Error", "Failed to save preferences. Please try again.");

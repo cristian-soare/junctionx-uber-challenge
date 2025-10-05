@@ -5,7 +5,7 @@ const isDevelopment = __DEV__;
 
 // IMPORTANT: If using Expo Go or physical device with tunnel mode,
 // replace with your computer's IP address (run `ipconfig getifaddr en0` on Mac)
-const LOCAL_IP = '172.20.10.2'; // Your computer's IP - use 'localhost' for web/simulator only
+const LOCAL_IP = '145.94.141.23'; // Your computer's IP - use 'localhost' for web/simulator only
 
 // Get the appropriate base URL based on platform
 const getApiBaseUrl = () => {

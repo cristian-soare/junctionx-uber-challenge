@@ -18,6 +18,8 @@ export default function MapHomeScreen() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isOptimalDetailsOpen, setIsOptimalDetailsOpen] = useState(false);
   const [optimalTime, setOptimalTime] = useState<string | null>(null);
+  const [optimalTimeHour, setOptimalTimeHour] = useState<number | null>(null);
+  const [nrHours, setNrHours] = useState<number | null>(null);
   const [earnings, setEarnings] = useState(247.50);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [progressWidth, setProgressWidth] = useState(0);
@@ -253,10 +255,12 @@ export default function MapHomeScreen() {
       <SchedulePanel
         visible={isScheduleOpen}
         onClose={() => setIsScheduleOpen(false)}
-        onSchedule={(time) => {
+        onSchedule={(time, optimalTimeHour, nrHours) => {
           setOptimalTime(time);
+          setOptimalTimeHour(optimalTimeHour);
+          setNrHours(nrHours);
           setIsScheduleOpen(false);
-          setScheduleStartTime(Date.now()); // Track start time for smooth animation
+          setScheduleStartTime(Date.now());
         }}
       />
 
@@ -274,9 +278,10 @@ export default function MapHomeScreen() {
           visible={isOptimalDetailsOpen}
           onClose={() => setIsOptimalDetailsOpen(false)}
           optimalTime={optimalTime}
+          optimalTimeHour={optimalTimeHour}
+          nrHours={nrHours}
           onTimeChange={(newTime) => {
             setOptimalTime(newTime);
-            // Reset progress when time changes
             setScheduleStartTime(Date.now());
           }}
         />

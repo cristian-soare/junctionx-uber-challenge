@@ -1,23 +1,6 @@
-/**
- * Driver Preferences Service - Handles working hours preferences and recommendations
- */
 import Config from "../config/Config";
+import { WorkingHoursRequest, OptimalTimeResponse, TimeScoresResponse, BestZoneResponse } from "../models/api";
 
-export interface WorkingHoursRequest {
-  earliest_start_time: string;
-  latest_start_time: string;
-  nr_hours: number;
-}
-
-export interface OptimalTimeResponse {
-  optimal_time: string;
-  score: number;
-  remaining_hours: number;
-}
-
-/**
- * Save driver's working hours preferences
- */
 export async function saveWorkingHours(
   driverId: string,
   preferences: WorkingHoursRequest
@@ -40,9 +23,6 @@ export async function saveWorkingHours(
   return await response.json();
 }
 
-/**
- * Get driver's working hours preferences
- */
 export async function getWorkingHours(driverId: string): Promise<any> {
   const response = await fetch(
     `${Config.API_BASE_URL}/drivers/${driverId}/preferences`,
@@ -61,25 +41,77 @@ export async function getWorkingHours(driverId: string): Promise<any> {
   return await response.json();
 }
 
-/**
- * Get optimal start time recommendation
- */
 export async function getOptimalTime(
   driverId: string
 ): Promise<OptimalTimeResponse> {
-  const response = await fetch(
-    `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/optimal-time`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
+  const url = `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/optimal-time`;
+  console.log("getOptimalTime URL:", url);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  console.log("getOptimalTime status:", response.status);
+  const responseText = await response.text();
+  console.log("getOptimalTime response:", responseText);
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
   }
 
-  return await response.json();
+  return JSON.parse(responseText);
+}
+
+export async function getTimeScores(
+  driverId: string
+): Promise<TimeScoresResponse> {
+  const url = `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/time-scores`;
+  console.log("getTimeScores URL:", url);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  console.log("getTimeScores status:", response.status);
+  const responseText = await response.text();
+  console.log("getTimeScores response:", responseText);
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
+  }
+
+  return JSON.parse(responseText);
+}
+
+export async function getBestZone(
+  driverId: string,
+  currentTime?: number
+): Promise<BestZoneResponse> {
+  const url = currentTime !== undefined
+    ? `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/best-zone?current_time=${currentTime}`
+    : `${Config.API_BASE_URL}/drivers/${driverId}/recommendations/best-zone`;
+  console.log("getBestZone URL:", url);
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  console.log("getBestZone status:", response.status);
+  const responseText = await response.text();
+  console.log("getBestZone response:", responseText);
+
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
+  }
+
+  return JSON.parse(responseText);
 }

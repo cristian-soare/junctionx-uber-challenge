@@ -23,12 +23,13 @@ services:
       - "8000:8000"
     volumes:
       - ./server:/app
+      - ./.env:/app/.env
     environment:
       - DATABASE_URL=sqlite:///./data/app.db
       - REDIS_URL=redis://redis:6379
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     env_file:
-      - ./server/.env
+      - ./.env
     depends_on:
       - redis
       - db
@@ -40,6 +41,7 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+
 
   db:
     image: alpine:latest

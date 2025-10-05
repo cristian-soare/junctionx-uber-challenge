@@ -1,10 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View, StyleSheet, Modal, Animated, Dimensions, ScrollView } from "react-native";
+import { getTimeScores, getBestZone } from "../services/preferencesService";
+import { TimeScore, BestZoneResponse } from "../models/api";
+import { hourToTimeString, timeStringToHour } from "../models/api";
+import Config from "../config/Config";
 
 interface OptimalDetailsPanelProps {
   visible: boolean;
   onClose: () => void;
   optimalTime: string;
+  optimalTimeHour: number | null;
+  nrHours: number | null;
   onTimeChange: (newTime: string) => void;
 }
 
@@ -12,29 +18,17 @@ const SCREEN_HEIGHT = Dimensions.get("window").height;
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const ITEM_WIDTH = 50;
 
-const generateTimeSlots = () => {
-  const slots = [];
-  for (let hour = 9; hour < 17; hour++) {
-    const actualHour = hour % 24;
-    const timeShort = `${String(actualHour).padStart(2, '0')}`; // For bar chart
-    const timeFull = `${String(actualHour).padStart(2, '0')}:00`; // For display after selection
-    const optimality = Math.round(Math.random() * 100);
-    const id = `slot-${actualHour}`;
-    slots.push({ id, timeShort, timeFull, optimality, hour: actualHour });
-  }
-  return slots;
-};
-
-const timeSlots = generateTimeSlots();
-
-export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onTimeChange }: OptimalDetailsPanelProps) {
+export default function OptimalDetailsPanel({ visible, onClose, optimalTime, optimalTimeHour, nrHours, onTimeChange }: OptimalDetailsPanelProps) {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const [showTimeDetails, setShowTimeDetails] = useState(false);
   const [showZoneDetails, setShowZoneDetails] = useState(false);
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [timeSlots, setTimeSlots] = useState<Array<{id: string, timeShort: string, timeFull: string, optimality: number, hour: number}>>([]);
+  const [bestZone, setBestZone] = useState<BestZoneResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const barHeightsRef = useRef(timeSlots.map(() => new Animated.Value(0))).current;
+  const barHeightsRef = useRef<Animated.Value[]>([]);
   const paddingSide = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
 
   useEffect(() => {
@@ -46,6 +40,8 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
         tension: 65,
         friction: 11,
       }).start();
+
+      fetchData();
     } else {
       Animated.timing(slideAnim, {
         toValue: SCREEN_HEIGHT,
@@ -57,11 +53,39 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
     }
   }, [visible]);
 
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+
+      const timeScoresResponse = await getTimeScores(Config.DEFAULT_DRIVER_ID);
+
+      const bestZoneResponse = optimalTimeHour !== null
+        ? await getBestZone(Config.DEFAULT_DRIVER_ID, optimalTimeHour)
+        : null;
+
+      const slots = timeScoresResponse.scores.map((score: TimeScore) => ({
+        id: `slot-${score.time}`,
+        timeShort: `${String(score.time).padStart(2, '0')}`,
+        timeFull: hourToTimeString(score.time),
+        optimality: Math.round(score.score * 100),
+        hour: score.time
+      }));
+
+      setTimeSlots(slots);
+      setBestZone(bestZoneResponse);
+      barHeightsRef.current = slots.map(() => new Animated.Value(0));
+    } catch (error) {
+      console.error("Failed to fetch optimal details:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (showTimeDetails) {
+    if (showTimeDetails && timeSlots.length > 0) {
       const animations = timeSlots.map((slot, idx) => {
         const finalHeight = (slot.optimality / 100) * 320 + 80;
-        return Animated.timing(barHeightsRef[idx], {
+        return Animated.timing(barHeightsRef.current[idx], {
           toValue: finalHeight,
           duration: 500,
           useNativeDriver: false,
@@ -72,10 +96,10 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
       setTimeout(() => {
         scrollViewRef.current?.scrollTo({ x: targetX, animated: true });
       }, 60);
-    } else {
-      timeSlots.forEach((_, idx) => barHeightsRef[idx].setValue(0));
+    } else if (timeSlots.length > 0) {
+      timeSlots.forEach((_, idx) => barHeightsRef.current[idx]?.setValue(0));
     }
-  }, [showTimeDetails, selectedTimeIndex]);
+  }, [showTimeDetails, selectedTimeIndex, timeSlots]);
 
   if (!visible) return null;
 
@@ -117,9 +141,9 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
                 onMomentumScrollEnd={handleMomentumScrollEnd}
                 scrollEventThrottle={16}
               >
-                {timeSlots.map((slot, index) => {
+                {timeSlots.length > 0 ? timeSlots.map((slot, index) => {
                   const isSelected = index === selectedTimeIndex;
-                  const animatedHeight = barHeightsRef[index];
+                  const animatedHeight = barHeightsRef.current[index];
                   const barColor = slot.optimality > 66 ? "#34C759" : slot.optimality > 33 ? "#FF9500" : "#E0E0E0";
 
                   return (
@@ -144,7 +168,11 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
                       </Text>
                     </View>
                   );
-                })}
+                }) : (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Loading...</Text>
+                  </View>
+                )}
               </ScrollView>
 
               {/* center indicator removed */}
@@ -220,7 +248,9 @@ export default function OptimalDetailsPanel({ visible, onClose, optimalTime, onT
             >
               <Text style={styles.zoneLabel}>Optimal Zone</Text>
               <View style={styles.zoneBox}>
-                <Text style={styles.zoneText}>Z4 (Zone 4)</Text>
+                <Text style={styles.zoneText}>
+                  {isLoading ? "Loading..." : bestZone?.cluster_id ? `${bestZone.cluster_id}` : "No zone"}
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -419,5 +449,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 20,
     color: "#000",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#999",
   },
 });

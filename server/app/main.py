@@ -28,7 +28,12 @@ app = FastAPI(
 
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["*"],
+  allow_origins=[
+    "http://localhost:8081",
+    "exp://6ka3zyi-anonymous-8081.exp.direct",
+    "http://6ka3zyi-anonymous-8081.exp.direct",
+    "*",
+  ],
   allow_credentials=True,
   allow_methods=["*"],
   allow_headers=["*"],
